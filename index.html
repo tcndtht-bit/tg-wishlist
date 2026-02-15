@@ -6,6 +6,7 @@
   <title>Вишлист</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
   <style>
     :root {
       --bg-primary: #1a1a2e;
@@ -286,7 +287,8 @@
     .wl-item-body { flex: 1; }
     .wl-item-remove { color: var(--accent); cursor: pointer; padding: 4px; }
     .wl-item-edit { color: var(--text-secondary); cursor: pointer; padding: 4px; font-size: 0.9rem; }
-    .wl-add-img { height: 80px; }
+    .wl-add-img { min-height: 80px; overflow: hidden; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+    .wl-add-img .img-preview { max-width: 100%; max-height: 120px; object-fit: contain; margin-top: 0; }
     .wl-header-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
     .privacy-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 6px; background: var(--border); color: var(--text-secondary); }
     .card-reserved { opacity: 0.85; border-left: 3px solid var(--accent); }
@@ -304,6 +306,27 @@
     .recent-item:active { transform: scale(0.98); }
     .recent-item img { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; }
     .back-btn { background: transparent; color: var(--text-secondary); padding: 8px 0; margin-bottom: 16px; }
+    .multiselect-wrap { position: relative; }
+    .multiselect-trigger {
+      display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-height: 44px;
+      padding: 10px 12px; background: var(--bg-secondary); border: 1px solid var(--border);
+      border-radius: 8px; cursor: pointer; font-size: 0.9rem;
+    }
+    .multiselect-trigger:focus { outline: none; border-color: var(--accent); }
+    .multiselect-trigger.open { border-color: var(--accent); }
+    .multiselect-placeholder { color: var(--text-secondary); }
+    .multiselect-chip { background: var(--bg-card); padding: 4px 8px; border-radius: 6px; font-size: 0.8rem; }
+    .multiselect-panel {
+      display: none; position: absolute; top: 100%; left: 0; right: 0; margin-top: 4px;
+      max-height: 200px; overflow-y: auto; background: var(--bg-card);
+      border: 1px solid var(--border); border-radius: 8px; z-index: 100;
+    }
+    .multiselect-wrap.open .multiselect-panel { display: block; }
+    .multiselect-option {
+      padding: 10px 12px; cursor: pointer; border-bottom: 1px solid var(--border);
+    }
+    .multiselect-option:last-child { border-bottom: none; }
+    .multiselect-option:hover, .multiselect-option.selected { background: rgba(233,69,96,0.2); }
     @media (min-width: 480px) {
       .modal { border-radius: 24px; margin: auto 16px 16px; }
     }
@@ -313,7 +336,7 @@
   <!-- v:2025-02-15-3 -->
   <div class="container">
     <header id="mainHeader">
-      <h1>Вишлист</h1>
+      <h1>Желай, как никогда прежде</h1>
     </header>
 
     <div id="content">
@@ -387,8 +410,8 @@
         </div>
         <div class="form-group">
           <label>Вишлисты</label>
-          <div id="wishWishlistChecks"></div>
-          <small style="color:var(--text-secondary);font-size:0.8rem;">Можно выбрать несколько</small>
+          <div class="multiselect-wrap" id="wishWishlistSelect"></div>
+          <small style="color:var(--text-secondary);font-size:0.8rem;">Выберите вишлисты из списка</small>
         </div>
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" id="wishCancel">Отмена</button>
@@ -542,6 +565,21 @@
     } catch (_) {}
 
     const CLIENT_ID_KEY = 'wishlist_client_id';
+    function packPayload(obj) {
+      const s = JSON.stringify(obj);
+      if (typeof LZString !== 'undefined') return LZString.compressToEncodedURIComponent(s);
+      return btoa(unescape(encodeURIComponent(s)));
+    }
+    function unpackPayload(str) {
+      if (!str) return null;
+      try {
+        if (typeof LZString !== 'undefined') {
+          const d = LZString.decompressFromEncodedURIComponent(str);
+          if (d) return JSON.parse(d);
+        }
+        return JSON.parse(decodeURIComponent(escape(atob(str))));
+      } catch (_) { return null; }
+    }
     let _memStorage = {};
     let _anonClientId = null;
     function safeGetItem(key) {
@@ -634,19 +672,29 @@
       return (data || []).map((r) => r.name);
     }
 
+    async function fetchPublicWishlistFromSupabase(wlId) {
+      const { data: wlRow, error: e1 } = await sb.from('wishlists').select('*').eq('id', wlId).eq('privacy', 'public').single();
+      if (e1 || !wlRow) return null;
+      const wl = { ...wlRow, ownerId: wlRow.owner_id };
+      const { data: items } = await sb.from('wishlist_items').select('wish_id').eq('wishlist_id', wlId);
+      const wishIds = (items || []).map((i) => i.wish_id);
+      const { data: wishRows } = wishIds.length ? await sb.from('wishes').select('*').in('id', wishIds) : { data: [] };
+      const wishes = (wishRows || []).map((r) => ({ ...r, wishlistIds: [wlId] }));
+      const { data: resRows } = await sb.from('reservations').select('wish_id, user_id, user_name').in('wish_id', wishIds);
+      const reservedCards = {};
+      (resRows || []).forEach((r) => { reservedCards[r.wish_id] = { userId: r.user_id, userName: r.user_name || 'Кто-то' }; });
+      return { type: 'public', wishlist: wl, wishes, reservedCards };
+    }
+
     function loadWishesSync() {
       const hash = window.location.hash.slice(1);
       if (hash) {
-        try {
-          const raw = decodeURIComponent(escape(atob(hash)));
-          const data = JSON.parse(raw);
-          if (data?.type === 'public') {
-            publicViewData = data;
-            return [];
-          }
-          const arr = Array.isArray(data?.wishes) ? data.wishes : (Array.isArray(data) ? data : []);
+        const data = unpackPayload(hash);
+        if (data?.type === 'public') { publicViewData = data; return []; }
+        if (data) {
+          const arr = Array.isArray(data.wishes) ? data.wishes : (Array.isArray(data) ? data : []);
           return arr.map(migrateWish);
-        } catch (_) {}
+        }
       }
       publicViewData = null;
       try {
@@ -686,19 +734,29 @@
     async function loadAll() {
       const hash = window.location.hash.slice(1);
       if (hash) {
-        try {
-          const raw = decodeURIComponent(escape(atob(hash)));
-          const data = JSON.parse(raw);
-          if (data?.type === 'public' && data?.wishlist?.id) {
-            publicViewData = data;
-            wishes = []; categories = [...DEFAULT_CATS]; wishlists = [];
-            return;
-          }
-          if (data?.type === 'invite') {
-            await handleInviteJoin(data);
-            return;
-          }
-        } catch (_) {}
+        const shortW = /^w\/(.+)$/.exec(hash);
+        const shortI = /^i\/(.+)$/.exec(hash);
+        if (shortW && useSupabase && sb) {
+          publicViewData = await fetchPublicWishlistFromSupabase(shortW[1]);
+          if (publicViewData) { wishes = []; categories = [...DEFAULT_CATS]; wishlists = []; return; }
+        }
+        if (shortI && useSupabase && sb) {
+          await ensureUser();
+          await sb.from('wishlist_collaborators').upsert({ wishlist_id: shortI[1], user_id: currentUserId }, { onConflict: 'wishlist_id,user_id' });
+          window.location.hash = '';
+          window.location.reload();
+          return;
+        }
+        const data = unpackPayload(hash);
+        if (data?.type === 'public' && data?.wishlist?.id) {
+          publicViewData = data;
+          wishes = []; categories = [...DEFAULT_CATS]; wishlists = [];
+          return;
+        }
+        if (data?.type === 'invite') {
+          await handleInviteJoin(data);
+          return;
+        }
       }
       publicViewData = null;
       if (useSupabase && sb) {
@@ -1273,7 +1331,7 @@
       content.querySelectorAll('.btn-reserve').forEach((b) => b.addEventListener('click', () => reserveCard(b.dataset.cardId)));
     }
 
-    function reserveCard(cardId) {
+    async function reserveCard(cardId) {
       if (!publicViewData) return;
       const u = tg?.initDataUnsafe?.user;
       const userId = u?.id ? 'tg_' + u.id : 'anon_' + Date.now();
@@ -1281,8 +1339,14 @@
       const reserved = { ...(publicViewData.reservedCards || {}) };
       reserved[cardId] = { userId, userName };
       publicViewData.reservedCards = reserved;
-      const url = window.location.origin + window.location.pathname + '#' + btoa(unescape(encodeURIComponent(JSON.stringify(publicViewData))));
-      history.replaceState(null, '', url);
+      const base = window.location.origin + window.location.pathname;
+      const hash = window.location.hash.slice(1);
+      if (hash.startsWith('w/') && useSupabase && sb) {
+        await sb.from('reservations').upsert({ wish_id: cardId, user_id: userId, user_name: userName }, { onConflict: 'wish_id' });
+        history.replaceState(null, '', base + '#' + hash);
+      } else {
+        history.replaceState(null, '', base + '#' + packPayload(publicViewData));
+      }
       render();
       tg?.HapticFeedback?.notificationOccurred?.('success');
     }
@@ -1385,19 +1449,39 @@
       sel.innerHTML = '<option value="">Без категории</option>' +
         categories.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
 
-      const wlChecks = document.getElementById('wishWishlistChecks');
-      wlChecks.innerHTML = wishlists.length === 0
+      const wlSelect = document.getElementById('wishWishlistSelect');
+      const initialIds = editId ? (wishes.find((x) => x.id === editId)?.wishlistIds || []) : (defaultWlId ? [defaultWlId] : []);
+      const selectedIds = new Set(Array.isArray(initialIds) ? initialIds : []);
+      const renderMultiselect = () => {
+        const names = wishlists.filter((wl) => selectedIds.has(wl.id)).map((wl) => wl.name);
+        trigger.innerHTML = names.length > 0
+          ? names.map((n) => `<span class="multiselect-chip">${escapeHtml(n)}</span>`).join('')
+          : '<span class="multiselect-placeholder">Выберите вишлисты</span>';
+        panel.querySelectorAll('.multiselect-option').forEach((opt) => opt.classList.toggle('selected', selectedIds.has(opt.dataset.id)));
+      };
+      wlSelect.innerHTML = wishlists.length === 0
         ? '<span style="color:var(--text-secondary);font-size:0.9rem;">Нет вишлистов</span>'
-        : wishlists.map((wl) => `<label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;">
-          <input type="checkbox" name="wishWishlist" value="${escapeHtml(wl.id)}">
-          <span>${escapeHtml(wl.name)}</span>
-        </label>`).join('');
-
-      if (!editId && defaultWlId) {
-        wlChecks.querySelectorAll('input[name="wishWishlist"]').forEach((cb) => {
-          cb.checked = cb.value === defaultWlId;
+        : `<div class="multiselect-trigger" id="wlMultiselectTrigger"></div>
+           <div class="multiselect-panel" id="wlMultiselectPanel">
+             ${wishlists.map((wl) => `<div class="multiselect-option" data-id="${escapeHtml(wl.id)}">${escapeHtml(wl.name)}</div>`).join('')}
+           </div>`;
+      const trigger = document.getElementById('wlMultiselectTrigger');
+      const panel = document.getElementById('wlMultiselectPanel');
+      if (trigger && panel) {
+        trigger.addEventListener('click', (e) => { e.stopPropagation(); wlSelect.classList.toggle('open'); });
+        panel.querySelectorAll('.multiselect-option').forEach((opt) => {
+          opt.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const id = opt.dataset.id;
+            if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
+            renderMultiselect();
+          });
         });
+        document.addEventListener('click', () => wlSelect.classList.remove('open'), { once: true });
+        wlSelect._getSelectedIds = () => [...selectedIds];
+        renderMultiselect();
       }
+
       if (editId) {
         const w = wishes.find((x) => x.id === editId);
         if (w) {
@@ -1409,10 +1493,6 @@
           document.getElementById('wishLink').value = w.link || '';
           document.getElementById('wishComment').value = w.comment || '';
           document.getElementById('wishCategory').value = w.category || '';
-          const ids = Array.isArray(w.wishlistIds) ? w.wishlistIds : [];
-          wlChecks.querySelectorAll('input[name="wishWishlist"]').forEach((cb) => {
-            cb.checked = ids.includes(cb.value);
-          });
           if (w.image) {
             pendingImageBase64 = w.image;
             document.getElementById('imgPreview').src = w.image;
@@ -1477,7 +1557,8 @@
       const link = document.getElementById('wishLink').value.trim();
       const comment = document.getElementById('wishComment').value.trim();
       const category = document.getElementById('wishCategory').value || undefined;
-      const wishlistIds = [...document.querySelectorAll('input[name="wishWishlist"]:checked')].map((cb) => cb.value);
+      const wlSel = document.getElementById('wishWishlistSelect');
+      const wishlistIds = wlSel?._getSelectedIds ? wlSel._getSelectedIds() : [];
 
       ['imgError','nameError','linkError','priceError','sizeError'].forEach((id) => {
         const el = document.getElementById(id);
@@ -1739,9 +1820,8 @@
     function openShareModal(wlId) {
       const wl = wishlists.find((x) => x.id === wlId);
       if (!wl || wl.privacy !== 'public') return;
-      const wlWishes = wishes.filter((w) => (w.wishlistIds || []).includes(wlId));
-      const data = { type: 'public', wishlist: wl, wishes: wlWishes, reservedCards: {} };
-      const url = window.location.origin + window.location.pathname + '#' + btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+      const base = window.location.origin + window.location.pathname;
+      const url = (useSupabase && sb) ? base + '#w/' + wlId : base + '#' + packPayload({ type: 'public', wishlist: wl, wishes: wishes.filter((w) => (w.wishlistIds || []).includes(wlId)), reservedCards: {} });
       document.getElementById('shareWlLink').textContent = url;
       document.getElementById('shareWlModal').classList.add('open');
     }
@@ -1749,9 +1829,8 @@
     function openInviteModal(wlId) {
       const wl = wishlists.find((x) => x.id === wlId);
       if (!wl || wl.privacy !== 'shared') return;
-      const wlWishes = wishes.filter((w) => (w.wishlistIds || []).includes(wlId));
-      const data = { type: 'invite', wishlist: { ...wl, coAuthorIds: wl.coAuthorIds || [wl.ownerId] }, wishes: wlWishes };
-      const url = window.location.origin + window.location.pathname + '#' + btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+      const base = window.location.origin + window.location.pathname;
+      const url = (useSupabase && sb) ? base + '#i/' + wlId : base + '#' + packPayload({ type: 'invite', wishlist: { ...wl, coAuthorIds: wl.coAuthorIds || [wl.ownerId] }, wishes: wishes.filter((w) => (w.wishlistIds || []).includes(wlId)) });
       document.getElementById('inviteWlLink').textContent = url;
       document.getElementById('inviteWlModal').classList.add('open');
     }
