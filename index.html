@@ -530,15 +530,22 @@
 
     const CLIENT_ID_KEY = 'wishlist_client_id';
     let _memStorage = {};
+    let _anonClientId = null;
     function safeGetItem(key) {
+      if (useSupabase && key !== CLIENT_ID_KEY) return null;
       try { return localStorage.getItem(key); } catch (_) { return _memStorage[key] ?? null; }
     }
     function safeSetItem(key, val) {
+      if (useSupabase && key !== CLIENT_ID_KEY) return;
       try { localStorage.setItem(key, val); } catch (_) { _memStorage[key] = val; }
     }
     function getCurrentUserId() {
       const u = tg?.initDataUnsafe?.user;
       if (u?.id) return 'tg_' + u.id;
+      if (useSupabase) {
+        if (!_anonClientId) _anonClientId = 'anon_' + Date.now() + '_' + Math.random().toString(36).slice(2);
+        return _anonClientId;
+      }
       let cid = safeGetItem(CLIENT_ID_KEY);
       if (!cid) { cid = 'anon_' + Date.now() + '_' + Math.random().toString(36).slice(2); safeSetItem(CLIENT_ID_KEY, cid); }
       return cid;
@@ -1639,7 +1646,6 @@
       tg?.HapticFeedback?.notificationOccurred?.('success');
     });
 
-    let pendingEditWlImage = null;
     function openEditWlForm(wlId) {
       const wl = wishlists.find((x) => x.id === wlId);
       if (!wl) return;
@@ -1742,9 +1748,13 @@
       const fallbackToLocal = function() {
         publicViewData = null;
         currentView = 'main';
-        try { wishes = JSON.parse(safeGetItem(WISHES_KEY) || '[]').map(migrateWish); } catch (_) { wishes = []; }
-        try { wishlists = (JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
-        try { const r = safeGetItem(CATS_KEY); categories = r ? JSON.parse(r) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
+        if (useSupabase) {
+          wishes = []; wishlists = []; categories = [...DEFAULT_CATS];
+        } else {
+          try { wishes = JSON.parse(safeGetItem(WISHES_KEY) || '[]').map(migrateWish); } catch (_) { wishes = []; }
+          try { wishlists = (JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
+          try { const r = safeGetItem(CATS_KEY); categories = r ? JSON.parse(r) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
+        }
         if (!Array.isArray(wishlists)) wishlists = [];
         if (!Array.isArray(wishes)) wishes = [];
         if (!Array.isArray(categories)) categories = [...DEFAULT_CATS];
