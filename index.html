@@ -659,7 +659,7 @@
         try {
           const raw = decodeURIComponent(escape(atob(hash)));
           const data = JSON.parse(raw);
-          if (data?.type === 'public') {
+          if (data?.type === 'public' && data?.wishlist?.id) {
             publicViewData = data;
             wishes = []; categories = [...DEFAULT_CATS]; wishlists = [];
             return;
@@ -670,18 +670,22 @@
           }
         } catch (_) {}
       }
-      if (publicViewData) { wishes = []; return; }
-      if (useSupabase) {
+      publicViewData = null;
+      if (useSupabase && supabase) {
         await ensureUser();
         wishlists = await loadWishlistsFromSupabase();
+        wishlists = Array.isArray(wishlists) ? wishlists : [];
         wishes = await loadWishesFromSupabase(new Set(wishlists.map((w) => w.id)));
+        wishes = Array.isArray(wishes) ? wishes : [];
         const cats = await loadCategoriesFromSupabase();
-        categories = cats.length ? cats : [...DEFAULT_CATS];
+        categories = Array.isArray(cats) && cats.length ? cats : [...DEFAULT_CATS];
       } else {
         wishes = loadWishesSync();
-        wishlists = (JSON.parse(localStorage.getItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist);
-        const raw = localStorage.getItem(CATS_KEY);
-        categories = raw ? JSON.parse(raw) : [...DEFAULT_CATS];
+        wishes = Array.isArray(wishes) ? wishes : [];
+        try { wishlists = (JSON.parse(localStorage.getItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
+        wishlists = Array.isArray(wishlists) ? wishlists : [];
+        try { const raw = localStorage.getItem(CATS_KEY); categories = raw ? JSON.parse(raw) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
+        categories = Array.isArray(categories) ? categories : [...DEFAULT_CATS];
       }
     }
 
@@ -866,11 +870,15 @@
     }
 
     function render() {
+      if (!Array.isArray(wishlists)) wishlists = [];
+      if (!Array.isArray(wishes)) wishes = [];
+      if (!Array.isArray(categories)) categories = [...DEFAULT_CATS];
       if (publicViewData) {
         renderPublicView();
         return;
       }
       const content = document.getElementById('content');
+      if (!content) return;
       if (currentView === 'main') {
         renderMain();
         return;
@@ -1724,17 +1732,34 @@
       const content = document.getElementById('content');
       if (!content) return;
       content.innerHTML = '<p style="text-align:center;padding:40px;color:var(--text-secondary);">Загрузка...</p>';
+      const fallbackToLocal = function() {
+        publicViewData = null;
+        currentView = 'main';
+        try { wishes = JSON.parse(localStorage.getItem(WISHES_KEY) || '[]').map(migrateWish); } catch (_) { wishes = []; }
+        try { wishlists = (JSON.parse(localStorage.getItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
+        try { const r = localStorage.getItem(CATS_KEY); categories = r ? JSON.parse(r) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
+        if (!Array.isArray(wishlists)) wishlists = [];
+        if (!Array.isArray(wishes)) wishes = [];
+        if (!Array.isArray(categories)) categories = [...DEFAULT_CATS];
+      };
       try {
-        await loadAll();
+        const loadPromise = loadAll();
+        const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 6000));
+        await Promise.race([loadPromise, timeout]);
       } catch (e) {
         console.error('Load error:', e);
-        if (!publicViewData) {
-          try { wishes = JSON.parse(localStorage.getItem(WISHES_KEY) || '[]').map(migrateWish); } catch (_) { wishes = []; }
-          try { wishlists = (JSON.parse(localStorage.getItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
-          try { const r = localStorage.getItem(CATS_KEY); categories = r ? JSON.parse(r) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
+        fallbackToLocal();
+      }
+      currentView = 'main';
+      try {
+        render();
+      } catch (e) {
+        console.error('Render error:', e);
+        fallbackToLocal();
+        try { render(); } catch (_) {
+          content.innerHTML = '<p style="text-align:center;padding:24px;color:var(--text-secondary);">Не удалось загрузить интерфейс.</p><button class="btn" style="margin:0 auto;display:block;" onclick="location.reload()">Обновить</button>';
         }
       }
-      render();
     })();
   </script>
 </body>
