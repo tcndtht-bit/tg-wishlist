@@ -760,6 +760,14 @@
       render();
     }
     window.__nav = navigateTo;
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-nav]');
+      if (btn) { e.preventDefault(); navigateTo(btn.dataset.nav); return; }
+      const back = e.target.closest('[data-nav-back]');
+      if (back) { e.preventDefault(); navigateTo('main'); return; }
+      const recent = e.target.closest('.recent-item[data-wl-id]');
+      if (recent) { e.preventDefault(); navigateTo('wishlist', recent.dataset.wlId); }
+    });
 
     function renderMain() {
       const content = document.getElementById('content');
