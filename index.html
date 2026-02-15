@@ -1752,9 +1752,21 @@
     document.getElementById('inviteWlModal').addEventListener('click', (e) => { if (e.target.id === 'inviteWlModal') e.target.classList.remove('open'); });
 
     (async function init() {
-      const content = document.getElementById('content');
-      if (!content) return;
-      content.innerHTML = '<p style="text-align:center;padding:40px;color:var(--text-secondary);">Загрузка...</p>';
+      let content;
+      try {
+        content = document.getElementById('content');
+        if (!content) { document.body.insertAdjacentHTML('beforeend', '<div id="content" style="padding:16px;"></div>'); content = document.getElementById('content'); }
+        currentView = 'main';
+        if (!Array.isArray(wishlists)) wishlists = [];
+        if (!Array.isArray(wishes)) wishes = [];
+        if (!Array.isArray(categories)) categories = [...DEFAULT_CATS];
+        render();
+      } catch (e) {
+        console.error('Init/render error:', e);
+        const c = document.getElementById('content');
+        if (c) c.innerHTML = '<p style="padding:24px;color:var(--accent);">Ошибка: ' + String(e && e.message || e).slice(0, 100) + '</p><button class="btn" onclick="location.reload()">Обновить</button>';
+        return;
+      }
       const fallbackToLocal = function() {
         publicViewData = null;
         currentView = 'main';
@@ -1771,7 +1783,7 @@
       };
       try {
         const loadPromise = loadAll();
-        const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 6000));
+        const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000));
         await Promise.race([loadPromise, timeout]);
       } catch (e) {
         console.error('Load error:', e);
