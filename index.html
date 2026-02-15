@@ -515,6 +515,25 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="shareWelcomeModal">
+    <div class="modal">
+      <h2>Поделились с вами</h2>
+      <p id="shareWelcomeText" style="color:var(--text-secondary);font-size:0.95rem;margin-bottom:20px;"></p>
+      <button type="button" class="btn" id="shareWelcomeOk">Понял</button>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="inviteConsentModal">
+    <div class="modal">
+      <h2>Приглашение</h2>
+      <p id="inviteConsentText" style="color:var(--text-secondary);font-size:0.95rem;margin-bottom:20px;"></p>
+      <div class="form-actions">
+        <button type="button" class="btn btn-secondary" id="inviteConsentDecline">Отказаться</button>
+        <button type="button" class="btn" id="inviteConsentAccept">Принять</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="inviteWlModal">
     <div class="modal">
       <h2>Пригласить соавтора</h2>
@@ -616,6 +635,8 @@
     let pendingImageBase64 = null;
     let pendingWlImageBase64 = null;
     let publicViewData = null;
+    let pendingInviteData = null;
+    let shareWelcomeShown = false;
     let editingWlId = null;
     let currentView = 'main';
     let selectedWlId = null;
@@ -682,6 +703,8 @@
       const { data: wlRow, error: e1 } = await sb.from('wishlists').select('*').eq('id', wlId).eq('privacy', 'public').single();
       if (e1 || !wlRow) return null;
       const wl = { ...wlRow, ownerId: wlRow.owner_id };
+      const { data: ownerRow } = await sb.from('users').select('first_name, username').eq('id', wl.owner_id).single();
+      const ownerName = ownerRow?.username ? '@' + ownerRow.username : (ownerRow?.first_name || 'Пользователь');
       const { data: items } = await sb.from('wishlist_items').select('wish_id').eq('wishlist_id', wlId);
       const wishIds = (items || []).map((i) => i.wish_id);
       const { data: wishRows } = wishIds.length ? await sb.from('wishes').select('*').in('id', wishIds) : { data: [] };
@@ -689,7 +712,15 @@
       const { data: resRows } = await sb.from('reservations').select('wish_id, user_id, user_name').in('wish_id', wishIds);
       const reservedCards = {};
       (resRows || []).forEach((r) => { reservedCards[r.wish_id] = { userId: r.user_id, userName: r.user_name || 'Кто-то' }; });
-      return { type: 'public', wishlist: wl, wishes, reservedCards };
+      return { type: 'public', wishlist: wl, wishes, reservedCards, ownerName };
+    }
+
+    async function fetchInviteWishlistFromSupabase(wlId) {
+      const { data: wlRow, error: e1 } = await sb.from('wishlists').select('*').eq('id', wlId).eq('privacy', 'shared').single();
+      if (e1 || !wlRow) return null;
+      const { data: ownerRow } = await sb.from('users').select('first_name, username').eq('id', wlRow.owner_id).single();
+      const ownerName = ownerRow?.username ? '@' + ownerRow.username : (ownerRow?.first_name || 'Пользователь');
+      return { wishlist: { ...wlRow, name: wlRow.name }, ownerName };
     }
 
     function loadWishesSync() {
@@ -748,14 +779,26 @@
         const shortI = /^i\/(.+)$/.exec(hash);
         if (shortW && useSupabase && sb) {
           publicViewData = await fetchPublicWishlistFromSupabase(shortW[1]);
-          if (publicViewData) { wishes = []; categories = [...DEFAULT_CATS]; wishlists = []; return; }
+          if (publicViewData) {
+            wishes = []; categories = [...DEFAULT_CATS]; wishlists = [];
+            history.replaceState(null, '', window.location.pathname + '#w/' + shortW[1]);
+            return;
+          }
         }
         if (shortI && useSupabase && sb) {
-          await ensureUser();
-          await sb.from('wishlist_collaborators').upsert({ wishlist_id: shortI[1], user_id: currentUserId }, { onConflict: 'wishlist_id,user_id' });
-          window.location.hash = '';
-          window.location.reload();
-          return;
+          const wlId = shortI[1];
+          try {
+            if (sessionStorage.getItem('declined_invite_' + wlId)) {
+              sessionStorage.removeItem('declined_invite_' + wlId);
+              hash = '';
+            } else {
+              const info = await fetchInviteWishlistFromSupabase(wlId);
+              if (info) {
+                pendingInviteData = { wlId, ownerName: info.ownerName, wlName: info.wishlist?.name || 'Вишлист' };
+                return;
+              }
+            }
+          } catch (_) {}
         }
         const data = unpackPayload(hash);
         if (data?.type === 'public' && data?.wishlist?.id) {
@@ -763,8 +806,13 @@
           wishes = []; categories = [...DEFAULT_CATS]; wishlists = [];
           return;
         }
-        if (data?.type === 'invite') {
-          await handleInviteJoin(data);
+        if (data?.type === 'invite' && data?.wishlist?.id) {
+          pendingInviteData = {
+            wlId: data.wishlist.id,
+            ownerName: data.ownerName || 'Пользователь',
+            wlName: data.wishlist.name || 'Вишлист',
+            fullPayload: data
+          };
           return;
         }
       }
@@ -988,8 +1036,20 @@
       if (!Array.isArray(wishlists)) wishlists = [];
       if (!Array.isArray(wishes)) wishes = [];
       if (!Array.isArray(categories)) categories = [...DEFAULT_CATS];
+      if (pendingInviteData) {
+        document.getElementById('inviteConsentText').textContent = `${pendingInviteData.ownerName} приглашает вас стать соавтором вишлиста «${pendingInviteData.wlName}». Вы сможете добавлять и редактировать желания.`;
+        document.getElementById('inviteConsentModal').classList.add('open');
+        return;
+      }
       if (publicViewData) {
         renderPublicView();
+        if (!shareWelcomeShown) {
+          const owner = publicViewData.ownerName || 'Пользователь';
+          const wlName = publicViewData.wishlist?.name || 'Вишлист';
+          document.getElementById('shareWelcomeText').textContent = `${owner} поделился с вами вишлистом «${wlName}». Вы можете забронировать любое желание.`;
+          document.getElementById('shareWelcomeModal').classList.add('open');
+          shareWelcomeShown = true;
+        }
         return;
       }
       const content = document.getElementById('content');
@@ -1864,7 +1924,8 @@
     function openShareModal(wlId) {
       const wl = wishlists.find((x) => x.id === wlId);
       if (!wl || wl.privacy !== 'public') return;
-      const url = buildShareUrl('share', wlId, { type: 'public', wishlist: wl, wishes: wishes.filter((w) => (w.wishlistIds || []).includes(wlId)), reservedCards: {} });
+      const ownerName = tg?.initDataUnsafe?.user?.username ? '@' + tg.initDataUnsafe.user.username : (tg?.initDataUnsafe?.user?.first_name || 'Пользователь');
+      const url = buildShareUrl('share', wlId, { type: 'public', wishlist: wl, wishes: wishes.filter((w) => (w.wishlistIds || []).includes(wlId)), reservedCards: {}, ownerName });
       document.getElementById('shareWlLink').textContent = url;
       document.getElementById('shareWlHint').style.display = (TELEGRAM_BOT && TELEGRAM_APP) ? 'none' : 'block';
       document.getElementById('shareWlModal').classList.add('open');
@@ -1873,7 +1934,8 @@
     function openInviteModal(wlId) {
       const wl = wishlists.find((x) => x.id === wlId);
       if (!wl || wl.privacy !== 'shared') return;
-      const url = buildShareUrl('invite', wlId, { type: 'invite', wishlist: { ...wl, coAuthorIds: wl.coAuthorIds || [wl.ownerId] }, wishes: wishes.filter((w) => (w.wishlistIds || []).includes(wlId)) });
+      const invOwnerName = tg?.initDataUnsafe?.user?.username ? '@' + tg.initDataUnsafe.user.username : (tg?.initDataUnsafe?.user?.first_name || 'Пользователь');
+      const url = buildShareUrl('invite', wlId, { type: 'invite', wishlist: { ...wl, coAuthorIds: wl.coAuthorIds || [wl.ownerId] }, wishes: wishes.filter((w) => (w.wishlistIds || []).includes(wlId)), ownerName: invOwnerName });
       document.getElementById('inviteWlLink').textContent = url;
       document.getElementById('inviteWlHint').style.display = (TELEGRAM_BOT && TELEGRAM_APP) ? 'none' : 'block';
       document.getElementById('inviteWlModal').classList.add('open');
@@ -1887,6 +1949,33 @@
       setTimeout(() => { document.getElementById('shareWlCopy').textContent = 'Копировать'; }, 2000);
     });
     document.getElementById('shareWlModal').addEventListener('click', (e) => { if (e.target.id === 'shareWlModal') e.target.classList.remove('open'); });
+
+    document.getElementById('shareWelcomeOk').addEventListener('click', () => {
+      document.getElementById('shareWelcomeModal').classList.remove('open');
+    });
+
+    document.getElementById('inviteConsentAccept').addEventListener('click', async () => {
+      if (!pendingInviteData) return;
+      const next = pendingInviteData;
+      pendingInviteData = null;
+      document.getElementById('inviteConsentModal').classList.remove('open');
+      if (next.fullPayload && !useSupabase) {
+        await handleInviteJoin(next.fullPayload);
+      } else if (useSupabase && sb) {
+        await ensureUser();
+        await sb.from('wishlist_collaborators').upsert({ wishlist_id: next.wlId, user_id: currentUserId }, { onConflict: 'wishlist_id,user_id' });
+      }
+      window.location.hash = '';
+      window.location.reload();
+    });
+
+    document.getElementById('inviteConsentDecline').addEventListener('click', () => {
+      if (!pendingInviteData) return;
+      sessionStorage.setItem('declined_invite_' + pendingInviteData.wlId, '1');
+      pendingInviteData = null;
+      document.getElementById('inviteConsentModal').classList.remove('open');
+      window.location.reload();
+    });
 
     document.getElementById('inviteWlClose').addEventListener('click', () => document.getElementById('inviteWlModal').classList.remove('open'));
     document.getElementById('inviteWlCopy').addEventListener('click', () => {
