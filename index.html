@@ -498,9 +498,14 @@
     // --- Supabase: вставь свои данные из Project Settings → API ---
     // Сначала выполни миграцию supabase-migration-add-user-to-wishes.sql
     const SUPABASE_URL = 'https://ieounwqtaxpozwdgbwpn.supabase.co';
-    const SUPABASE_ANON_KEY = 'sb_publishable_2ieV6045lSUOYWCTF8GEkQ_JGeQIErK';
-    const useSupabase = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
-    const supabase = useSupabase ? window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imllb3Vud3F0YXhwb3p3ZGdid3BuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExMjI5ODgsImV4cCI6MjA4NjY5ODk4OH0.axb4HUzkz-VZ2pJZOR08gY-q4Na3U1gcxbK2eLtZRcg';
+    let supabase = null;
+    try {
+      if (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase) {
+        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      }
+    } catch (_) {}
+    const useSupabase = !!supabase;
 
     const tg = window.Telegram?.WebApp;
     const WISHES_KEY = 'wishlist_wishes';
@@ -1716,8 +1721,19 @@
     document.getElementById('inviteWlModal').addEventListener('click', (e) => { if (e.target.id === 'inviteWlModal') e.target.classList.remove('open'); });
 
     (async function init() {
-      document.getElementById('content').innerHTML = '<p style="text-align:center;padding:40px;color:var(--text-secondary);">Загрузка...</p>';
-      await loadAll();
+      const content = document.getElementById('content');
+      if (!content) return;
+      content.innerHTML = '<p style="text-align:center;padding:40px;color:var(--text-secondary);">Загрузка...</p>';
+      try {
+        await loadAll();
+      } catch (e) {
+        console.error('Load error:', e);
+        if (!publicViewData) {
+          try { wishes = JSON.parse(localStorage.getItem(WISHES_KEY) || '[]').map(migrateWish); } catch (_) { wishes = []; }
+          try { wishlists = (JSON.parse(localStorage.getItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
+          try { const r = localStorage.getItem(CATS_KEY); categories = r ? JSON.parse(r) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
+        }
+      }
       render();
     })();
   </script>
