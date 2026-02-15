@@ -570,8 +570,9 @@
 
     async function ensureUser() {
       const u = tg?.initDataUnsafe?.user;
-      if (!u?.id || !useSupabase) return;
-      await supabase.from('users').upsert({ id: 'tg_' + u.id, first_name: u.first_name, username: u.username }, { onConflict: 'id' });
+      if (!u?.id || !useSupabase) return { error: null };
+      const { error } = await supabase.from('users').upsert({ id: 'tg_' + u.id, first_name: u.first_name, username: u.username }, { onConflict: 'id' });
+      return { error };
     }
 
     async function loadWishesFromSupabase(wlIdSet) {
@@ -596,7 +597,8 @@
     }
 
     async function loadWishlistsFromSupabase() {
-      const { data: owned } = await supabase.from('wishlists').select('*').eq('owner_id', currentUserId);
+      const { data: owned, error: errOwned } = await supabase.from('wishlists').select('*').eq('owner_id', currentUserId);
+      if (errOwned) return { data: [], error: errOwned };
       const { data: collab } = await supabase.from('wishlist_collaborators').select('wishlist_id').eq('user_id', currentUserId);
       const collabIds = (collab || []).map((c) => c.wishlist_id);
       const { data: shared } = collabIds.length ? await supabase.from('wishlists').select('*').in('id', collabIds) : { data: [] };
@@ -610,7 +612,7 @@
       allCollab?.forEach((c) => {
         if (byId[c.wishlist_id] && !byId[c.wishlist_id].coAuthorIds.includes(c.user_id)) byId[c.wishlist_id].coAuthorIds.push(c.user_id);
       });
-      return Object.values(byId).map(migrateWishlist);
+      return { data: Object.values(byId).map(migrateWishlist), error: null };
     }
 
     async function loadCategoriesFromSupabase() {
@@ -686,9 +688,17 @@
       }
       publicViewData = null;
       if (useSupabase && supabase) {
-        await ensureUser();
-        wishlists = await loadWishlistsFromSupabase();
-        wishlists = Array.isArray(wishlists) ? wishlists : [];
+        const userRes = await ensureUser();
+        if (userRes.error) {
+          window._supabaseLoadError = userRes.error.message || JSON.stringify(userRes.error);
+          return;
+        }
+        const wlRes = await loadWishlistsFromSupabase();
+        if (wlRes.error) {
+          window._supabaseLoadError = wlRes.error.message || JSON.stringify(wlRes.error);
+          return;
+        }
+        wishlists = Array.isArray(wlRes.data) ? wlRes.data : [];
         wishes = await loadWishesFromSupabase(new Set(wishlists.map((w) => w.id)));
         wishes = Array.isArray(wishes) ? wishes : [];
         const cats = await loadCategoriesFromSupabase();
@@ -1768,6 +1778,13 @@
         fallbackToLocal();
       }
       currentView = 'main';
+      if (window._supabaseLoadError) {
+        const raw = String(window._supabaseLoadError);
+        const msg = raw.length > 200 ? raw.slice(0, 200) + '…' : raw;
+        const safe = msg.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+        content.innerHTML = '<p style="text-align:center;padding:24px;color:var(--accent);">Ошибка Supabase: ' + safe + '</p><p style="text-align:center;font-size:0.85rem;color:var(--text-secondary);">Проверь RLS: выполни supabase-disable-rls.sql в SQL Editor.</p><button class="btn" style="margin:16px auto;display:block;" onclick="location.reload()">Обновить</button>';
+        return;
+      }
       try {
         render();
       } catch (e) {
