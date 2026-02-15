@@ -310,7 +310,7 @@
   </style>
 </head>
 <body>
-  <!-- v:2025-02-15-2 -->
+  <!-- v:2025-02-15-3 -->
   <div class="container">
     <header id="mainHeader">
       <h1>Вишлист</h1>
@@ -508,13 +508,15 @@
     // Сначала выполни миграцию supabase-migration-add-user-to-wishes.sql
     const SUPABASE_URL = 'https://ieounwqtaxpozwdgbwpn.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imllb3Vud3F0YXhwb3p3ZGdid3BuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExMjI5ODgsImV4cCI6MjA4NjY5ODk4OH0.axb4HUzkz-VZ2pJZOR08gY-q4Na3U1gcxbK2eLtZRcg';
-    let supabase = null;
+    let sb = null;
     try {
       if (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase) {
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+          auth: { persistSession: false }
+        });
       }
     } catch (_) {}
-    const useSupabase = !!supabase;
+    const useSupabase = !!sb;
 
     const tg = window.Telegram?.WebApp;
     const WISHES_KEY = 'wishlist_wishes';
@@ -561,7 +563,8 @@
       if (!cid) { cid = 'anon_' + Date.now() + '_' + Math.random().toString(36).slice(2); safeSetItem(CLIENT_ID_KEY, cid); }
       return cid;
     }
-    const currentUserId = getCurrentUserId();
+    let currentUserId;
+    try { currentUserId = getCurrentUserId(); } catch (_) { currentUserId = 'anon_' + Date.now(); }
 
     let wishes = [];
     let categories = [...DEFAULT_CATS];
@@ -582,18 +585,18 @@
     async function ensureUser() {
       const u = tg?.initDataUnsafe?.user;
       if (!u?.id || !useSupabase) return { error: null };
-      const { error } = await supabase.from('users').upsert({ id: 'tg_' + u.id, first_name: u.first_name, username: u.username }, { onConflict: 'id' });
+      const { error } = await sb.from('users').upsert({ id: 'tg_' + u.id, first_name: u.first_name, username: u.username }, { onConflict: 'id' });
       return { error };
     }
 
     async function loadWishesFromSupabase(wlIdSet) {
       const wlIds = wlIdSet || new Set(wishlists.map((w) => w.id));
-      const { data: items } = wlIds.size > 0 ? await supabase.from('wishlist_items').select('wishlist_id, wish_id').in('wishlist_id', [...wlIds]) : { data: [] };
+      const { data: items } = wlIds.size > 0 ? await sb.from('wishlist_items').select('wishlist_id, wish_id').in('wishlist_id', [...wlIds]) : { data: [] };
       const wishIds = new Set((items || []).map((i) => i.wish_id));
-      const { data: ownRows } = await supabase.from('wishes').select('*').eq('user_id', currentUserId);
+      const { data: ownRows } = await sb.from('wishes').select('*').eq('user_id', currentUserId);
       (ownRows || []).forEach((r) => wishIds.add(r.id));
       if (wishIds.size === 0) return [];
-      const { data: rows } = await supabase.from('wishes').select('*').in('id', [...wishIds]);
+      const { data: rows } = await sb.from('wishes').select('*').in('id', [...wishIds]);
       const byWish = {};
       (items || []).forEach((i) => {
         if (!wlIds.has(i.wishlist_id)) return;
@@ -608,18 +611,18 @@
     }
 
     async function loadWishlistsFromSupabase() {
-      const { data: owned, error: errOwned } = await supabase.from('wishlists').select('*').eq('owner_id', currentUserId);
+      const { data: owned, error: errOwned } = await sb.from('wishlists').select('*').eq('owner_id', currentUserId);
       if (errOwned) return { data: [], error: errOwned };
-      const { data: collab } = await supabase.from('wishlist_collaborators').select('wishlist_id').eq('user_id', currentUserId);
+      const { data: collab } = await sb.from('wishlist_collaborators').select('wishlist_id').eq('user_id', currentUserId);
       const collabIds = (collab || []).map((c) => c.wishlist_id);
-      const { data: shared } = collabIds.length ? await supabase.from('wishlists').select('*').in('id', collabIds) : { data: [] };
+      const { data: shared } = collabIds.length ? await sb.from('wishlists').select('*').in('id', collabIds) : { data: [] };
       const byId = {};
       (owned || []).forEach((w) => { byId[w.id] = { ...w, ownerId: w.owner_id, coAuthorIds: [w.owner_id] }; });
       (shared || []).forEach((w) => {
         if (!byId[w.id]) byId[w.id] = { ...w, ownerId: w.owner_id, coAuthorIds: [w.owner_id] };
         if (!byId[w.id].coAuthorIds.includes(currentUserId)) byId[w.id].coAuthorIds.push(currentUserId);
       });
-      const { data: allCollab } = Object.keys(byId).length ? await supabase.from('wishlist_collaborators').select('wishlist_id, user_id').in('wishlist_id', Object.keys(byId)) : { data: [] };
+      const { data: allCollab } = Object.keys(byId).length ? await sb.from('wishlist_collaborators').select('wishlist_id, user_id').in('wishlist_id', Object.keys(byId)) : { data: [] };
       allCollab?.forEach((c) => {
         if (byId[c.wishlist_id] && !byId[c.wishlist_id].coAuthorIds.includes(c.user_id)) byId[c.wishlist_id].coAuthorIds.push(c.user_id);
       });
@@ -627,7 +630,7 @@
     }
 
     async function loadCategoriesFromSupabase() {
-      const { data } = await supabase.from('categories').select('name').eq('user_id', currentUserId);
+      const { data } = await sb.from('categories').select('name').eq('user_id', currentUserId);
       return (data || []).map((r) => r.name);
     }
 
@@ -657,7 +660,7 @@
       if (!wl?.id) return;
       if (useSupabase) {
         await ensureUser();
-        await supabase.from('wishlist_collaborators').upsert({ wishlist_id: wl.id, user_id: currentUserId }, { onConflict: 'wishlist_id,user_id' });
+        await sb.from('wishlist_collaborators').upsert({ wishlist_id: wl.id, user_id: currentUserId }, { onConflict: 'wishlist_id,user_id' });
       } else {
         const wls = JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]');
         const wis = JSON.parse(safeGetItem(WISHES_KEY) || '[]').map(migrateWish);
@@ -698,7 +701,7 @@
         } catch (_) {}
       }
       publicViewData = null;
-      if (useSupabase && supabase) {
+      if (useSupabase && sb) {
         const userRes = await ensureUser();
         if (userRes.error) {
           window._supabaseLoadError = userRes.error.message || JSON.stringify(userRes.error);
@@ -728,13 +731,13 @@
       if (useSupabase) {
         for (const w of wishes) {
           const row = { id: w.id, name: w.name, image: w.image, price: w.price, currency: w.currency, size: w.size, link: w.link, comment: w.comment, category: w.category, user_id: currentUserId };
-          await supabase.from('wishes').upsert(row, { onConflict: 'id' });
-          await supabase.from('wishlist_items').delete().eq('wish_id', w.id);
-          for (const wlId of (w.wishlistIds || [])) await supabase.from('wishlist_items').insert({ wishlist_id: wlId, wish_id: w.id });
+          await sb.from('wishes').upsert(row, { onConflict: 'id' });
+          await sb.from('wishlist_items').delete().eq('wish_id', w.id);
+          for (const wlId of (w.wishlistIds || [])) await sb.from('wishlist_items').insert({ wishlist_id: wlId, wish_id: w.id });
         }
-        const { data: dbRows } = await supabase.from('wishes').select('id').eq('user_id', currentUserId);
+        const { data: dbRows } = await sb.from('wishes').select('id').eq('user_id', currentUserId);
         const localIds = new Set(wishes.map((w) => w.id));
-        for (const r of (dbRows || [])) { if (!localIds.has(r.id)) await supabase.from('wishes').delete().eq('id', r.id); }
+        for (const r of (dbRows || [])) { if (!localIds.has(r.id)) await sb.from('wishes').delete().eq('id', r.id); }
       } else {
         try { safeSetItem(WISHES_KEY, JSON.stringify(wishes)); } catch (e) { tg?.showAlert?.('Не удалось сохранить.'); }
       }
@@ -742,8 +745,8 @@
 
     async function saveCategories() {
       if (useSupabase) {
-        await supabase.from('categories').delete().eq('user_id', currentUserId);
-        for (const name of categories) await supabase.from('categories').insert({ user_id: currentUserId, name });
+        await sb.from('categories').delete().eq('user_id', currentUserId);
+        for (const name of categories) await sb.from('categories').insert({ user_id: currentUserId, name });
       } else {
         safeSetItem(CATS_KEY, JSON.stringify(categories));
       }
@@ -822,17 +825,17 @@
     async function saveWishlists() {
       if (useSupabase) {
         const ourIds = new Set(wishlists.map((w) => w.id));
-        const { data: owned } = await supabase.from('wishlists').select('id').eq('owner_id', currentUserId);
+        const { data: owned } = await sb.from('wishlists').select('id').eq('owner_id', currentUserId);
         for (const r of (owned || [])) {
-          if (!ourIds.has(r.id)) await supabase.from('wishlists').delete().eq('id', r.id);
+          if (!ourIds.has(r.id)) await sb.from('wishlists').delete().eq('id', r.id);
         }
         for (const wl of wishlists) {
           const row = { id: wl.id, name: wl.name, image: wl.image, privacy: wl.privacy || 'private', owner_id: wl.ownerId || currentUserId };
           if (wl.updatedAt) row.updated_at = new Date(wl.updatedAt).toISOString();
-          await supabase.from('wishlists').upsert(row, { onConflict: 'id' });
-          await supabase.from('wishlist_collaborators').delete().eq('wishlist_id', wl.id);
+          await sb.from('wishlists').upsert(row, { onConflict: 'id' });
+          await sb.from('wishlist_collaborators').delete().eq('wishlist_id', wl.id);
           for (const uid of (wl.coAuthorIds || [])) {
-            if (uid !== (wl.ownerId || wl.owner_id)) await supabase.from('wishlist_collaborators').insert({ wishlist_id: wl.id, user_id: uid });
+            if (uid !== (wl.ownerId || wl.owner_id)) await sb.from('wishlist_collaborators').insert({ wishlist_id: wl.id, user_id: uid });
           }
         }
       } else {
