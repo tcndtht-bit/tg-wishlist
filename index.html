@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Вишлист</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
       --bg-primary: #1a1a2e;
@@ -284,7 +285,13 @@
     }
     .wl-item-body { flex: 1; }
     .wl-item-remove { color: var(--accent); cursor: pointer; padding: 4px; }
+    .wl-item-edit { color: var(--text-secondary); cursor: pointer; padding: 4px; font-size: 0.9rem; }
     .wl-add-img { height: 80px; }
+    .wl-header-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+    .privacy-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 6px; background: var(--border); color: var(--text-secondary); }
+    .card-reserved { opacity: 0.85; border-left: 3px solid var(--accent); }
+    .card-reserved-badge { font-size: 0.8rem; color: var(--accent); margin-top: 6px; }
+    .view-readonly .btn-edit, .view-readonly .btn-del, .view-readonly .btn-move { display: none !important; }
     @media (min-width: 480px) {
       .modal { border-radius: 24px; margin: auto 16px 16px; }
     }
@@ -404,10 +411,18 @@
         Вишлист — папка для карточек желаний. Добавляй, удаляй, переноси карточки.
       </p>
       <div class="cat-list" id="wlList"></div>
-      <div style="margin-top:16px;">
+      <div style="margin-top:16px;" id="wlAddForm">
         <div class="form-group">
           <label><span class="required">*</span> Название</label>
           <input type="text" id="newWlName" placeholder="Название вишлиста">
+        </div>
+        <div class="form-group">
+          <label>Приватность</label>
+          <select id="newWlPrivacy">
+            <option value="private">Приватный — только вы</option>
+            <option value="public">Публичный — любой по ссылке может смотреть и бронировать</option>
+            <option value="shared">Совместный — соавторы по приглашению</option>
+          </select>
         </div>
         <div class="form-group">
           <label>Картинка</label>
@@ -419,13 +434,70 @@
         </div>
         <button type="button" class="btn" id="addWlBtn">Добавить вишлист</button>
       </div>
+      <div id="wlEditForm" style="display:none;">
+        <div class="form-group">
+          <label><span class="required">*</span> Название</label>
+          <input type="text" id="editWlName" placeholder="Название вишлиста">
+        </div>
+        <div class="form-group">
+          <label>Приватность</label>
+          <select id="editWlPrivacy">
+            <option value="private">Приватный</option>
+            <option value="public">Публичный</option>
+            <option value="shared">Совместный</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Картинка</label>
+          <div class="img-upload wl-add-img" id="wlImgUploadEdit">
+            <input type="file" id="wlImageEdit" accept="image/*">
+            <span id="wlImgTextEdit">Обложка</span>
+            <img id="wlImgPreviewEdit" class="img-preview" style="display:none;max-height:120px;" alt="">
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="editWlCancel">Отмена</button>
+          <button type="button" class="btn" id="editWlSave">Сохранить</button>
+        </div>
+      </div>
       <div class="form-actions" style="margin-top:20px;">
         <button type="button" class="btn btn-secondary" id="wlClose">Закрыть</button>
       </div>
     </div>
   </div>
 
+  <div class="modal-overlay" id="shareWlModal">
+    <div class="modal">
+      <h2>Поделиться вишлистом</h2>
+      <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:12px;">Кто угодно по ссылке увидит вишлист и сможет забронировать карточки.</p>
+      <div class="share-link" id="shareWlLink" style="word-break:break-all;padding:12px;background:var(--bg-card);border-radius:8px;font-size:0.85rem;"></div>
+      <div class="form-actions" style="margin-top:16px;">
+        <button type="button" class="btn btn-secondary" id="shareWlClose">Закрыть</button>
+        <button type="button" class="btn" id="shareWlCopy">Копировать</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="inviteWlModal">
+    <div class="modal">
+      <h2>Пригласить соавтора</h2>
+      <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:12px;">Отправь ссылку — человек станет соавтором и сможет редактировать вишлист.</p>
+      <div class="share-link" id="inviteWlLink" style="word-break:break-all;padding:12px;background:var(--bg-card);border-radius:8px;font-size:0.85rem;"></div>
+      <div class="form-actions" style="margin-top:16px;">
+        <button type="button" class="btn btn-secondary" id="inviteWlClose">Закрыть</button>
+        <button type="button" class="btn" id="inviteWlCopy">Копировать</button>
+      </div>
+    </div>
+  </div>
+
   <script>
+    // --- Supabase: вставь свои данные из Project Settings → API ---
+    // Сначала выполни миграцию supabase-migration-add-user-to-wishes.sql
+    const SUPABASE_URL = 'https://ieounwqtaxpozwdgbwpn.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_2ieV6045lSUOYWCTF8GEkQ_JGeQIErK';
+    const useSupabase = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
+    const supabase = useSupabase ? window.supabase?.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
     const tg = window.Telegram?.WebApp;
     const WISHES_KEY = 'wishlist_wishes';
     const CATS_KEY = 'wishlist_categories';
@@ -447,11 +519,23 @@
       tg.setHeaderColor(tg.themeParams?.bg_color || '#1a1a2e');
     }
 
-    let wishes = loadWishes();
-    let categories = loadCategories();
-    let wishlists = loadWishlists();
+    const CLIENT_ID_KEY = 'wishlist_client_id';
+    function getCurrentUserId() {
+      const u = tg?.initDataUnsafe?.user;
+      if (u?.id) return 'tg_' + u.id;
+      let cid = localStorage.getItem(CLIENT_ID_KEY);
+      if (!cid) { cid = 'anon_' + Date.now() + '_' + Math.random().toString(36).slice(2); localStorage.setItem(CLIENT_ID_KEY, cid); }
+      return cid;
+    }
+    const currentUserId = getCurrentUserId();
+
+    let wishes = [];
+    let categories = [...DEFAULT_CATS];
+    let wishlists = [];
     let pendingImageBase64 = null;
     let pendingWlImageBase64 = null;
+    let publicViewData = null;
+    let editingWlId = null;
 
     function migrateWish(w) {
       const ids = Array.isArray(w.wishlistIds) ? w.wishlistIds : (w.wishlistId ? [w.wishlistId] : []);
@@ -459,52 +543,196 @@
       return { ...rest, wishlistIds: ids };
     }
 
-    function loadWishes() {
+    async function ensureUser() {
+      const u = tg?.initDataUnsafe?.user;
+      if (!u?.id || !useSupabase) return;
+      await supabase.from('users').upsert({ id: 'tg_' + u.id, first_name: u.first_name, username: u.username }, { onConflict: 'id' });
+    }
+
+    async function loadWishesFromSupabase(wlIdSet) {
+      const wlIds = wlIdSet || new Set(wishlists.map((w) => w.id));
+      const { data: items } = wlIds.size > 0 ? await supabase.from('wishlist_items').select('wishlist_id, wish_id').in('wishlist_id', [...wlIds]) : { data: [] };
+      const wishIds = new Set((items || []).map((i) => i.wish_id));
+      const { data: ownRows } = await supabase.from('wishes').select('*').eq('user_id', currentUserId);
+      (ownRows || []).forEach((r) => wishIds.add(r.id));
+      if (wishIds.size === 0) return [];
+      const { data: rows } = await supabase.from('wishes').select('*').in('id', [...wishIds]);
+      const byWish = {};
+      (items || []).forEach((i) => {
+        if (!wlIds.has(i.wishlist_id)) return;
+        if (!byWish[i.wish_id]) byWish[i.wish_id] = [];
+        byWish[i.wish_id].push(i.wishlist_id);
+      });
+      return (rows || []).map((r) => ({
+        id: r.id, name: r.name, image: r.image, price: r.price, currency: r.currency,
+        size: r.size, link: r.link, comment: r.comment, category: r.category,
+        wishlistIds: byWish[r.id] || [],
+      }));
+    }
+
+    async function loadWishlistsFromSupabase() {
+      const { data: owned } = await supabase.from('wishlists').select('*').eq('owner_id', currentUserId);
+      const { data: collab } = await supabase.from('wishlist_collaborators').select('wishlist_id').eq('user_id', currentUserId);
+      const collabIds = (collab || []).map((c) => c.wishlist_id);
+      const { data: shared } = collabIds.length ? await supabase.from('wishlists').select('*').in('id', collabIds) : { data: [] };
+      const byId = {};
+      (owned || []).forEach((w) => { byId[w.id] = { ...w, ownerId: w.owner_id, coAuthorIds: [w.owner_id] }; });
+      (shared || []).forEach((w) => {
+        if (!byId[w.id]) byId[w.id] = { ...w, ownerId: w.owner_id, coAuthorIds: [w.owner_id] };
+        if (!byId[w.id].coAuthorIds.includes(currentUserId)) byId[w.id].coAuthorIds.push(currentUserId);
+      });
+      const { data: allCollab } = Object.keys(byId).length ? await supabase.from('wishlist_collaborators').select('wishlist_id, user_id').in('wishlist_id', Object.keys(byId)) : { data: [] };
+      allCollab?.forEach((c) => {
+        if (byId[c.wishlist_id] && !byId[c.wishlist_id].coAuthorIds.includes(c.user_id)) byId[c.wishlist_id].coAuthorIds.push(c.user_id);
+      });
+      return Object.values(byId).map(migrateWishlist);
+    }
+
+    async function loadCategoriesFromSupabase() {
+      const { data } = await supabase.from('categories').select('name').eq('user_id', currentUserId);
+      return (data || []).map((r) => r.name);
+    }
+
+    function loadWishesSync() {
       const hash = window.location.hash.slice(1);
       if (hash) {
         try {
           const raw = decodeURIComponent(escape(atob(hash)));
           const data = JSON.parse(raw);
+          if (data?.type === 'public') {
+            publicViewData = data;
+            return [];
+          }
           const arr = Array.isArray(data?.wishes) ? data.wishes : (Array.isArray(data) ? data : []);
           return arr.map(migrateWish);
         } catch (_) {}
       }
+      publicViewData = null;
       try {
-        const raw = JSON.parse(localStorage.getItem(WISHES_KEY) || '[]');
-        return raw.map(migrateWish);
+        return JSON.parse(localStorage.getItem(WISHES_KEY) || '[]').map(migrateWish);
       } catch (_) { return []; }
     }
 
-    function loadCategories() {
-      const raw = localStorage.getItem(CATS_KEY);
-      if (raw) {
+    async function handleInviteJoin(data) {
+      const wl = data.wishlist;
+      const wlWishes = data.wishes || [];
+      if (!wl?.id) return;
+      if (useSupabase) {
+        await ensureUser();
+        await supabase.from('wishlist_collaborators').upsert({ wishlist_id: wl.id, user_id: currentUserId }, { onConflict: 'wishlist_id,user_id' });
+      } else {
+        const wls = JSON.parse(localStorage.getItem(WISHLISTS_KEY) || '[]');
+        const wis = JSON.parse(localStorage.getItem(WISHES_KEY) || '[]').map(migrateWish);
+        const existing = wls.find((x) => x.id === wl.id);
+        const coAuthorIds = Array.isArray(wl.coAuthorIds) ? [...wl.coAuthorIds] : (wl.ownerId ? [wl.ownerId] : []);
+        if (!coAuthorIds.includes(currentUserId)) coAuthorIds.push(currentUserId);
+        const mergedWl = { ...wl, coAuthorIds };
+        let newWls = existing ? wls.map((x) => x.id === wl.id ? { ...x, ...mergedWl, coAuthorIds: [...new Set([...(x.coAuthorIds || []), currentUserId])] } : x) : [...wls, mergedWl];
+        const newWis = [...wis];
+        wlWishes.forEach((w) => {
+          const mw = migrateWish({ ...w, wishlistIds: [...(Array.isArray(w.wishlistIds) ? w.wishlistIds : []), wl.id].filter((x, i, a) => a.indexOf(x) === i) });
+          const ei = newWis.findIndex((x) => x.id === mw.id);
+          if (ei >= 0) { if (!newWis[ei].wishlistIds?.includes(wl.id)) newWis[ei].wishlistIds = [...(newWis[ei].wishlistIds || []), wl.id]; }
+          else newWis.push(mw);
+        });
+        localStorage.setItem(WISHLISTS_KEY, JSON.stringify(newWls));
+        localStorage.setItem(WISHES_KEY, JSON.stringify(newWis));
+      }
+      window.location.hash = '';
+      window.location.reload();
+    }
+
+    async function loadAll() {
+      const hash = window.location.hash.slice(1);
+      if (hash) {
         try {
-          const arr = JSON.parse(raw);
-          return Array.isArray(arr) ? arr : [...DEFAULT_CATS];
+          const raw = decodeURIComponent(escape(atob(hash)));
+          const data = JSON.parse(raw);
+          if (data?.type === 'public') {
+            publicViewData = data;
+            wishes = []; categories = [...DEFAULT_CATS]; wishlists = [];
+            return;
+          }
+          if (data?.type === 'invite') {
+            await handleInviteJoin(data);
+            return;
+          }
         } catch (_) {}
       }
-      return [...DEFAULT_CATS];
-    }
-
-    function saveWishes() {
-      try { localStorage.setItem(WISHES_KEY, JSON.stringify(wishes)); } catch (e) {
-        tg?.showAlert?.('Не удалось сохранить. Возможно, много данных.');
+      if (publicViewData) { wishes = []; return; }
+      if (useSupabase) {
+        await ensureUser();
+        wishlists = await loadWishlistsFromSupabase();
+        wishes = await loadWishesFromSupabase(new Set(wishlists.map((w) => w.id)));
+        const cats = await loadCategoriesFromSupabase();
+        categories = cats.length ? cats : [...DEFAULT_CATS];
+      } else {
+        wishes = loadWishesSync();
+        wishlists = (JSON.parse(localStorage.getItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist);
+        const raw = localStorage.getItem(CATS_KEY);
+        categories = raw ? JSON.parse(raw) : [...DEFAULT_CATS];
       }
     }
 
-    function saveCategories() {
-      localStorage.setItem(CATS_KEY, JSON.stringify(categories));
+    async function saveWishes() {
+      if (useSupabase) {
+        for (const w of wishes) {
+          const row = { id: w.id, name: w.name, image: w.image, price: w.price, currency: w.currency, size: w.size, link: w.link, comment: w.comment, category: w.category, user_id: currentUserId };
+          await supabase.from('wishes').upsert(row, { onConflict: 'id' });
+          await supabase.from('wishlist_items').delete().eq('wish_id', w.id);
+          for (const wlId of (w.wishlistIds || [])) await supabase.from('wishlist_items').insert({ wishlist_id: wlId, wish_id: w.id });
+        }
+        const { data: dbRows } = await supabase.from('wishes').select('id').eq('user_id', currentUserId);
+        const localIds = new Set(wishes.map((w) => w.id));
+        for (const r of (dbRows || [])) { if (!localIds.has(r.id)) await supabase.from('wishes').delete().eq('id', r.id); }
+      } else {
+        try { localStorage.setItem(WISHES_KEY, JSON.stringify(wishes)); } catch (e) { tg?.showAlert?.('Не удалось сохранить.'); }
+      }
     }
 
-    function loadWishlists() {
-      try {
-        const raw = localStorage.getItem(WISHLISTS_KEY);
-        return raw ? JSON.parse(raw) : [];
-      } catch (_) { return []; }
+    async function saveCategories() {
+      if (useSupabase) {
+        await supabase.from('categories').delete().eq('user_id', currentUserId);
+        for (const name of categories) await supabase.from('categories').insert({ user_id: currentUserId, name });
+      } else {
+        localStorage.setItem(CATS_KEY, JSON.stringify(categories));
+      }
     }
 
-    function saveWishlists() {
-      localStorage.setItem(WISHLISTS_KEY, JSON.stringify(wishlists));
+    function migrateWishlist(wl) {
+      if (!wl.ownerId) wl.ownerId = wl.owner_id || currentUserId;
+      if (!Array.isArray(wl.coAuthorIds) && wl.ownerId) wl.coAuthorIds = [wl.ownerId];
+      if (!wl.privacy) wl.privacy = wl.privacy || 'private';
+      return wl;
+    }
+
+    function canEditWishlist(wl) {
+      if (!wl) return false;
+      return wl.ownerId === currentUserId || (Array.isArray(wl.coAuthorIds) && wl.coAuthorIds.includes(currentUserId));
+    }
+
+    function isOwner(wl) {
+      return wl?.ownerId === currentUserId;
+    }
+
+    async function saveWishlists() {
+      if (useSupabase) {
+        const ourIds = new Set(wishlists.map((w) => w.id));
+        const { data: owned } = await supabase.from('wishlists').select('id').eq('owner_id', currentUserId);
+        for (const r of (owned || [])) {
+          if (!ourIds.has(r.id)) await supabase.from('wishlists').delete().eq('id', r.id);
+        }
+        for (const wl of wishlists) {
+          const row = { id: wl.id, name: wl.name, image: wl.image, privacy: wl.privacy || 'private', owner_id: wl.ownerId || currentUserId };
+          await supabase.from('wishlists').upsert(row, { onConflict: 'id' });
+          await supabase.from('wishlist_collaborators').delete().eq('wishlist_id', wl.id);
+          for (const uid of (wl.coAuthorIds || [])) {
+            if (uid !== (wl.ownerId || wl.owner_id)) await supabase.from('wishlist_collaborators').insert({ wishlist_id: wl.id, user_id: uid });
+          }
+        }
+      } else {
+        localStorage.setItem(WISHLISTS_KEY, JSON.stringify(wishlists));
+      }
     }
 
     function escapeHtml(s) {
@@ -581,6 +809,10 @@
     }
 
     function render() {
+      if (publicViewData) {
+        renderPublicView();
+        return;
+      }
       const list = document.getElementById('wishlist');
       const userBadge = document.getElementById('userBadge');
       if (tg?.initDataUnsafe?.user) {
@@ -588,7 +820,13 @@
         userBadge.style.display = 'block';
       } else userBadge.style.display = 'none';
 
-      if (wishes.length === 0 && wishlists.length === 0) {
+      const visibleWishlists = wishlists.filter((wl) => {
+        if (wl.privacy === 'private') return wl.ownerId === currentUserId;
+        if (wl.privacy === 'shared') return canEditWishlist(wl);
+        return true;
+      });
+
+      if (wishes.length === 0 && visibleWishlists.length === 0) {
         list.innerHTML = `
           <div class="empty-state">
             <p>Нет желаний. Нажми «Добавить» — понадобятся фото и название.</p>
@@ -602,7 +840,7 @@
       const standalone = wishes.filter((w) => getIds(w).length === 0);
       const sections = [];
 
-      wishlists.forEach((wl) => {
+      visibleWishlists.forEach((wl) => {
         const wlWishes = wishes.filter((w) => getIds(w).includes(wl.id));
         sections.push({ type: 'wishlist', wl, wishes: wlWishes });
       });
@@ -622,10 +860,18 @@
           if (!catOrder.includes(c)) catOrder.push(c);
         });
 
+        const pr = sec.type === 'wishlist' ? sec.wl.privacy : null;
+        const prLabel = pr === 'private' ? 'Приватный' : (pr === 'public' ? 'Публичный' : (pr === 'shared' ? 'Совместный' : ''));
+        const shareBtn = pr === 'public' && isOwner(sec.wl)
+          ? `<button class="btn btn-sm btn-secondary" data-wl-share="${sec.wl.id}">Поделиться</button>` : '';
+        const inviteBtn = pr === 'shared' && isOwner(sec.wl)
+          ? `<button class="btn btn-sm btn-secondary" data-wl-invite="${sec.wl.id}">Пригласить</button>` : '';
         const header = sec.type === 'wishlist'
           ? `<div class="wl-section-header">
                ${sec.wl.image ? `<img class="wl-section-img" src="${escapeHtml(sec.wl.image)}" alt="">` : ''}
                <span class="wl-section-title">${escapeHtml(sec.wl.name)}</span>
+               ${prLabel ? `<span class="privacy-badge">${escapeHtml(prLabel)}</span>` : ''}
+               <span class="wl-header-actions">${shareBtn}${inviteBtn}</span>
              </div>`
           : `<div class="wl-section-header">
                <span class="wl-section-title">Отдельные желания</span>
@@ -636,7 +882,7 @@
           return `
             <div class="categories-section">
               <div class="category-title"><span class="count">${items.length}</span> ${escapeHtml(catName)}</div>
-              <div class="wishlist">${items.map((w) => renderCard(w, sec)).join('')}</div>
+              <div class="wishlist">${items.map((w) => renderCard(w, sec, null)).join('')}</div>
             </div>`;
         }).join('');
 
@@ -644,8 +890,59 @@
       }).join('');
 
       list.querySelectorAll('.btn-edit').forEach((b) => b.addEventListener('click', () => openWishModal(b.dataset.id)));
-      list.querySelectorAll('.btn-del').forEach((b) => b.addEventListener('click', () => deleteWish(b.dataset.id)));
+      list.querySelectorAll('.btn-del').forEach((b) => b.addEventListener('click', () => deleteWish(b.dataset.id).catch(() => {})));
       list.querySelectorAll('.btn-move').forEach((b) => b.addEventListener('click', (e) => toggleMoveMenu(e, b.dataset.id)));
+      list.querySelectorAll('[data-wl-share]').forEach((b) => b.addEventListener('click', () => openShareModal(b.dataset.wlShare)));
+      list.querySelectorAll('[data-wl-invite]').forEach((b) => b.addEventListener('click', () => openInviteModal(b.dataset.wlInvite)));
+    }
+
+    function renderPublicView() {
+      const d = publicViewData;
+      const list = document.getElementById('wishlist');
+      document.getElementById('content').querySelector('.user-badge').style.display = 'none';
+      document.querySelector('.header-actions')?.remove();
+      const wl = d.wishlist || {};
+      const items = d.wishes || [];
+      const reserved = d.reservedCards || {};
+      const byCat = {};
+      items.forEach((w) => {
+        const c = w.category || 'Без категории';
+        if (!byCat[c]) byCat[c] = [];
+        byCat[c].push(w);
+      });
+      const catOrder = Object.keys(byCat);
+      list.innerHTML = `
+        <div class="wl-section">
+          <div class="wl-section-header">
+            ${wl.image ? `<img class="wl-section-img" src="${escapeHtml(wl.image)}" alt="">` : ''}
+            <span class="wl-section-title">${escapeHtml(wl.name || 'Вишлист')}</span>
+          </div>
+          <div class="wl-section-body view-readonly">
+            ${catOrder.map((catName) => {
+              const catItems = byCat[catName] || [];
+              return `
+                <div class="categories-section">
+                  <div class="category-title"><span class="count">${catItems.length}</span> ${escapeHtml(catName)}</div>
+                  <div class="wishlist">${catItems.map((w) => renderCard(w, null, { reserved, items: d })).join('')}</div>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+      list.querySelectorAll('.btn-reserve').forEach((b) => b.addEventListener('click', () => reserveCard(b.dataset.cardId)));
+    }
+
+    function reserveCard(cardId) {
+      if (!publicViewData) return;
+      const u = tg?.initDataUnsafe?.user;
+      const userId = u?.id ? 'tg_' + u.id : 'anon_' + Date.now();
+      const userName = u?.first_name || 'Кто-то';
+      const reserved = { ...(publicViewData.reservedCards || {}) };
+      reserved[cardId] = { userId, userName };
+      publicViewData.reservedCards = reserved;
+      const url = window.location.origin + window.location.pathname + '#' + btoa(unescape(encodeURIComponent(JSON.stringify(publicViewData))));
+      history.replaceState(null, '', url);
+      render();
+      tg?.HapticFeedback?.notificationOccurred?.('success');
     }
 
     document.addEventListener('click', () => closeMoveMenus());
@@ -664,7 +961,7 @@
         const inList = ids.includes(wl.id);
         const opt = document.createElement('button');
         opt.textContent = inList ? `✓ Убрать из «${wl.name}»` : `Добавить в «${wl.name}»`;
-        opt.addEventListener('click', (e2) => { e2.stopPropagation(); toggleWishWishlist(wishId, wl.id); closeMoveMenus(); });
+        opt.addEventListener('click', async (e2) => { e2.stopPropagation(); await toggleWishWishlist(wishId, wl.id); closeMoveMenus(); });
         menu.appendChild(opt);
       });
       if (menu.children.length === 0) return;
@@ -675,7 +972,7 @@
       document.querySelectorAll('.card-move-menu').forEach((m) => m.remove());
     }
 
-    function toggleWishWishlist(wishId, wlId) {
+    async function toggleWishWishlist(wishId, wlId) {
       const w = wishes.find((x) => x.id === wishId);
       if (!w) return;
       const ids = Array.isArray(w.wishlistIds) ? [...w.wishlistIds] : [];
@@ -683,32 +980,45 @@
       if (idx >= 0) ids.splice(idx, 1);
       else ids.push(wlId);
       w.wishlistIds = ids;
-      saveWishes();
+      await saveWishes();
       render();
       tg?.HapticFeedback?.notificationOccurred?.('success');
     }
 
-    function renderCard(w, section) {
+    function renderCard(w, section, publicViewOpts) {
       const priceStr = formatPrice(w.price, w.currency);
-      const canMove = wishlists.length > 0;
+      const isPublicView = !!publicViewOpts;
+      const reserved = publicViewOpts?.reserved?.[w.id];
+      const reservedClass = reserved ? ' card-reserved' : '';
+      const reservedBadge = reserved
+        ? `<div class="card-reserved-badge">Забронировано${reserved.userName ? `: ${escapeHtml(reserved.userName)}` : ''}</div>`
+        : '';
+      const canMove = !isPublicView && wishlists.length > 0;
       const moveBtn = canMove
         ? `<div class="card-move-wrap">
              <button class="btn btn-secondary btn-sm btn-move card-move-btn" data-id="${w.id}">В вишлист</button>
            </div>`
         : '';
+      const reserveBtn = isPublicView && !reserved
+        ? `<button class="btn btn-sm btn-reserve" data-card-id="${w.id}">Забронировать</button>`
+        : '';
+      const actions = isPublicView
+        ? `<div class="card-actions">${reserveBtn}</div>`
+        : `<div class="card-actions">
+             ${moveBtn}
+             <button class="btn btn-secondary btn-sm btn-edit" data-id="${w.id}">Редактировать</button>
+             <button class="btn btn-secondary btn-sm btn-del" data-id="${w.id}">Удалить</button>
+           </div>`;
       return `
-        <div class="card" data-id="${w.id}">
+        <div class="card${reservedClass}" data-id="${w.id}">
           <img class="card-img" src="${escapeHtml(w.image || '')}" alt="" onerror="this.style.display='none'">
           <div class="card-title">${escapeHtml(w.name)}</div>
           ${priceStr ? `<div class="card-price">${escapeHtml(priceStr)}</div>` : ''}
           ${w.size ? `<div class="card-meta">Размер: ${escapeHtml(w.size)}</div>` : ''}
           ${w.link ? `<a class="card-link" href="${escapeHtml(w.link)}" target="_blank" rel="noopener">${escapeHtml(w.link)}</a>` : ''}
           ${w.comment ? `<div class="card-comment">${escapeHtml(w.comment)}</div>` : ''}
-          <div class="card-actions">
-            ${moveBtn}
-            <button class="btn btn-secondary btn-sm btn-edit" data-id="${w.id}">Редактировать</button>
-            <button class="btn btn-secondary btn-sm btn-del" data-id="${w.id}">Удалить</button>
-          </div>
+          ${reservedBadge}
+          ${actions}
         </div>`;
     }
 
@@ -806,7 +1116,7 @@
       }
     }
 
-    document.getElementById('wishForm').addEventListener('submit', async (e) => {
+    document.getElementById('wishForm').addEventListener('submit', (async (e) => {
       e.preventDefault();
       const id = document.getElementById('wishId').value;
       const isNew = !id;
@@ -871,16 +1181,16 @@
       if (idx >= 0) wishes[idx] = { ...wishes[idx], ...payload };
       else wishes.push(payload);
 
-      saveWishes();
+      await saveWishes();
       render();
       closeWishModal();
       tg?.HapticFeedback?.notificationOccurred?.('success');
     });
 
-    function deleteWish(id) {
+    async function deleteWish(id) {
       tg?.HapticFeedback?.impactOccurred?.('medium');
       wishes = wishes.filter((x) => x.id !== id);
-      saveWishes();
+      await saveWishes();
       render();
     }
 
@@ -901,9 +1211,9 @@
               <span class="cat-item-remove" data-cat="${escapeHtml(c)}">✕</span>
             </div>`).join('');
       list.querySelectorAll('.cat-item-remove').forEach((el) => {
-        el.addEventListener('click', () => {
+        el.addEventListener('click', async () => {
           categories = categories.filter((x) => x !== el.dataset.cat);
-          saveCategories();
+          await saveCategories();
           openCatsModal();
         });
       });
@@ -917,14 +1227,14 @@
       if (e.target.id === 'catsModal') e.target.classList.remove('open');
     });
 
-    document.getElementById('addCatBtn').addEventListener('click', () => {
+    document.getElementById('addCatBtn').addEventListener('click', async () => {
       const v = document.getElementById('newCatName').value.trim();
       if (!v) return;
       const re = /^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]+$/;
       if (!re.test(v)) return;
       if (categories.includes(v)) return;
       categories.push(v);
-      saveCategories();
+      await saveCategories();
       document.getElementById('newCatName').value = '';
       openCatsModal();
     });
@@ -935,28 +1245,41 @@
 
     function openWlModal() {
       tg?.HapticFeedback?.impactOccurred?.('light');
+      document.getElementById('wlAddForm').style.display = 'block';
+      document.getElementById('wlEditForm').style.display = 'none';
+      editingWlId = null;
       pendingWlImageBase64 = null;
       document.getElementById('wlImgPreview').style.display = 'none';
       document.getElementById('wlImgText').textContent = 'Добавить обложку (необязательно)';
       const list = document.getElementById('wlList');
       list.innerHTML = wishlists.length === 0
         ? '<div class="empty-cats">Вишлистов нет. Добавь первый.</div>'
-        : wishlists.map((wl) => `
+        : wishlists.map((wl) => {
+            const pr = wl.privacy === 'private' ? 'Приватный' : (wl.privacy === 'public' ? 'Публичный' : 'Совместный');
+            return `
             <div class="wl-item" data-wl-id="${escapeHtml(wl.id)}">
               ${wl.image ? `<img class="wl-item-img" src="${escapeHtml(wl.image)}" alt="">` : '<div class="wl-item-img" style="background:var(--border);flex-shrink:0;"></div>'}
-              <div class="wl-item-body">${escapeHtml(wl.name)}</div>
+              <div class="wl-item-body">
+                <div>${escapeHtml(wl.name)}</div>
+                <span class="privacy-badge" style="font-size:0.7rem;margin-top:4px;display:inline-block;">${escapeHtml(pr)}</span>
+              </div>
+              <span class="wl-item-edit" data-wl-id="${escapeHtml(wl.id)}" title="Редактировать">✎</span>
               <span class="wl-item-remove" data-wl-id="${escapeHtml(wl.id)}">✕</span>
-            </div>`).join('');
+            </div>`;
+          }).join('');
+      list.querySelectorAll('.wl-item-edit').forEach((el) => {
+        el.addEventListener('click', () => openEditWlForm(el.dataset.wlId));
+      });
       list.querySelectorAll('.wl-item-remove').forEach((el) => {
-        el.addEventListener('click', () => {
+        el.addEventListener('click', async () => {
           const wlId = el.dataset.wlId;
           wishes.forEach((w) => {
             const ids = Array.isArray(w.wishlistIds) ? w.wishlistIds : [];
             w.wishlistIds = ids.filter((id) => id !== wlId);
           });
           wishlists = wishlists.filter((x) => x.id !== wlId);
-          saveWishlists();
-          saveWishes();
+          await saveWishlists();
+          await saveWishes();
           openWlModal();
         });
       });
@@ -991,20 +1314,123 @@
         id: 'wl_' + Date.now(),
         name,
         image: pendingWlImageBase64 || undefined,
-        privacy: 'private',
+        privacy: document.getElementById('newWlPrivacy').value || 'private',
+        ownerId: currentUserId,
+        coAuthorIds: [currentUserId],
       };
       wishlists.push(wl);
-      saveWishlists();
+      await saveWishlists();
       pendingWlImageBase64 = null;
       document.getElementById('newWlName').value = '';
       document.getElementById('wlImgPreview').style.display = 'none';
       document.getElementById('wlImgText').textContent = 'Добавить обложку (необязательно)';
       document.getElementById('wlImage').value = '';
       openWlModal();
+      render();
       tg?.HapticFeedback?.notificationOccurred?.('success');
     });
 
-    render();
+    let pendingEditWlImage = null;
+    function openEditWlForm(wlId) {
+      const wl = wishlists.find((x) => x.id === wlId);
+      if (!wl) return;
+      editingWlId = wlId;
+      pendingEditWlImage = null;
+      document.getElementById('wlAddForm').style.display = 'none';
+      document.getElementById('wlEditForm').style.display = 'block';
+      document.getElementById('editWlName').value = wl.name || '';
+      document.getElementById('editWlPrivacy').value = wl.privacy || 'private';
+      document.getElementById('wlImgPreviewEdit').style.display = 'none';
+      document.getElementById('wlImgTextEdit').textContent = 'Обложка';
+      if (wl.image) {
+        document.getElementById('wlImgPreviewEdit').src = wl.image;
+        document.getElementById('wlImgPreviewEdit').style.display = 'block';
+        document.getElementById('wlImgTextEdit').textContent = 'Изменить обложку';
+      }
+    }
+
+    document.getElementById('editWlCancel').addEventListener('click', () => {
+      editingWlId = null;
+      document.getElementById('wlAddForm').style.display = 'block';
+      document.getElementById('wlEditForm').style.display = 'none';
+      openWlModal();
+    });
+
+    document.getElementById('editWlSave').addEventListener('click', async () => {
+      if (!editingWlId) return;
+      const wl = wishlists.find((x) => x.id === editingWlId);
+      if (!wl) return;
+      const name = document.getElementById('editWlName').value.trim();
+      if (!name) return;
+      wl.name = name;
+      wl.privacy = document.getElementById('editWlPrivacy').value || 'private';
+      if (pendingEditWlImage) wl.image = pendingEditWlImage;
+      await saveWishlists();
+      editingWlId = null;
+      document.getElementById('wlAddForm').style.display = 'block';
+      document.getElementById('wlEditForm').style.display = 'none';
+      openWlModal();
+      render();
+      tg?.HapticFeedback?.notificationOccurred?.('success');
+    });
+
+    document.getElementById('wlImgUploadEdit').addEventListener('click', () => document.getElementById('wlImageEdit').click());
+    document.getElementById('wlImageEdit').addEventListener('change', async (e) => {
+      const f = e.target.files?.[0];
+      if (!f || !f.type.startsWith('image/')) return;
+      try {
+        let b64 = await fileToBase64(f);
+        b64 = await resizeImageBase64(b64, 400);
+        pendingEditWlImage = b64;
+        document.getElementById('wlImgPreviewEdit').src = b64;
+        document.getElementById('wlImgPreviewEdit').style.display = 'block';
+        document.getElementById('wlImgTextEdit').textContent = 'Изменить обложку';
+      } catch (_) {}
+    });
+
+    function openShareModal(wlId) {
+      const wl = wishlists.find((x) => x.id === wlId);
+      if (!wl || wl.privacy !== 'public') return;
+      const wlWishes = wishes.filter((w) => (w.wishlistIds || []).includes(wlId));
+      const data = { type: 'public', wishlist: wl, wishes: wlWishes, reservedCards: {} };
+      const url = window.location.origin + window.location.pathname + '#' + btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+      document.getElementById('shareWlLink').textContent = url;
+      document.getElementById('shareWlModal').classList.add('open');
+    }
+
+    function openInviteModal(wlId) {
+      const wl = wishlists.find((x) => x.id === wlId);
+      if (!wl || wl.privacy !== 'shared') return;
+      const wlWishes = wishes.filter((w) => (w.wishlistIds || []).includes(wlId));
+      const data = { type: 'invite', wishlist: { ...wl, coAuthorIds: wl.coAuthorIds || [wl.ownerId] }, wishes: wlWishes };
+      const url = window.location.origin + window.location.pathname + '#' + btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+      document.getElementById('inviteWlLink').textContent = url;
+      document.getElementById('inviteWlModal').classList.add('open');
+    }
+
+    document.getElementById('shareWlClose').addEventListener('click', () => document.getElementById('shareWlModal').classList.remove('open'));
+    document.getElementById('shareWlCopy').addEventListener('click', () => {
+      navigator.clipboard?.writeText(document.getElementById('shareWlLink').textContent);
+      tg?.HapticFeedback?.notificationOccurred?.('success');
+      document.getElementById('shareWlCopy').textContent = 'Скопировано!';
+      setTimeout(() => { document.getElementById('shareWlCopy').textContent = 'Копировать'; }, 2000);
+    });
+    document.getElementById('shareWlModal').addEventListener('click', (e) => { if (e.target.id === 'shareWlModal') e.target.classList.remove('open'); });
+
+    document.getElementById('inviteWlClose').addEventListener('click', () => document.getElementById('inviteWlModal').classList.remove('open'));
+    document.getElementById('inviteWlCopy').addEventListener('click', () => {
+      navigator.clipboard?.writeText(document.getElementById('inviteWlLink').textContent);
+      tg?.HapticFeedback?.notificationOccurred?.('success');
+      document.getElementById('inviteWlCopy').textContent = 'Скопировано!';
+      setTimeout(() => { document.getElementById('inviteWlCopy').textContent = 'Копировать'; }, 2000);
+    });
+    document.getElementById('inviteWlModal').addEventListener('click', (e) => { if (e.target.id === 'inviteWlModal') e.target.classList.remove('open'); });
+
+    (async function init() {
+      document.getElementById('wishlist').innerHTML = '<p style="text-align:center;padding:40px;color:var(--text-secondary);">Загрузка...</p>';
+      await loadAll();
+      render();
+    })();
   </script>
 </body>
 </html>
