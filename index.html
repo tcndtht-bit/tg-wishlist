@@ -808,7 +808,9 @@
 
     async function loadAll() {
       let hash = window.location.hash.slice(1);
-      const startParam = getStartParam();
+      const goHome = sessionStorage.getItem('publicViewGoHome');
+      if (goHome) { sessionStorage.removeItem('publicViewGoHome'); hash = ''; }
+      const startParam = goHome ? '' : getStartParam();
       if (startParam && (startParam.startsWith('w_') || startParam.startsWith('i_'))) {
         hash = startParam.replace('_', '/');
       }
@@ -1413,6 +1415,13 @@
       document.getElementById('newCatName').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('addCatBtn').click(); });
     }
 
+    function getMyWishes() {
+      return wishes.filter((w) => {
+        const ids = w.wishlistIds || [];
+        return ids.some((id) => { const wl = wishlists.find((x) => x.id === id); return wl && !wl.isFollowedPublic; });
+      });
+    }
+
     function renderManageWishes() {
       const content = document.getElementById('content');
       content.innerHTML = `
@@ -1424,13 +1433,14 @@
       content.querySelector('[data-nav-back]').addEventListener('click', () => navigateTo('main'));
       document.getElementById('addWishBtn').addEventListener('click', () => openWishModal());
 
+      const myWishes = getMyWishes();
       const list = document.getElementById('wishList');
-      if (wishes.length === 0) {
+      if (myWishes.length === 0) {
         list.innerHTML = '<div class="empty-state"><p>Нет желаний. Нажми «Добавить желание».</p></div>';
         return;
       }
       const byCat = {};
-      wishes.forEach((w) => { const c = w.category || 'Без категории'; if (!byCat[c]) byCat[c] = []; byCat[c].push(w); });
+      myWishes.forEach((w) => { const c = w.category || 'Без категории'; if (!byCat[c]) byCat[c] = []; byCat[c].push(w); });
       const catOrder = [...categories, 'Без категории'].filter((c) => byCat[c]?.length);
       Object.keys(byCat).forEach((c) => { if (!catOrder.includes(c)) catOrder.push(c); });
       list.innerHTML = catOrder.map((catName) => {
@@ -1591,6 +1601,7 @@
           </div>
         </div>`;
       content.querySelector('#publicViewHomeBtn')?.addEventListener('click', () => {
+        sessionStorage.setItem('publicViewGoHome', '1');
         history.replaceState(null, '', window.location.pathname);
         window.location.reload();
       });
@@ -1651,7 +1662,7 @@
       const ids = Array.isArray(w?.wishlistIds) ? w.wishlistIds : [];
       const menu = document.createElement('div');
       menu.className = 'card-move-menu';
-      wishlists.forEach((wl) => {
+      wishlists.filter((wl) => !wl.isFollowedPublic).forEach((wl) => {
         const inList = ids.includes(wl.id);
         const opt = document.createElement('button');
         opt.textContent = inList ? `✓ Убрать из «${wl.name}»` : `Добавить в «${wl.name}»`;
@@ -1743,18 +1754,19 @@
       const wlSelect = document.getElementById('wishWishlistSelect');
       const initialIds = editId ? (wishes.find((x) => x.id === editId)?.wishlistIds || []) : (defaultWlId ? [defaultWlId] : []);
       const selectedIds = new Set(Array.isArray(initialIds) ? initialIds : []);
+      const editableWishlists = wishlists.filter((wl) => !wl.isFollowedPublic);
       const renderMultiselect = () => {
-        const names = wishlists.filter((wl) => selectedIds.has(wl.id)).map((wl) => wl.name);
+        const names = editableWishlists.filter((wl) => selectedIds.has(wl.id)).map((wl) => wl.name);
         trigger.innerHTML = names.length > 0
           ? names.map((n) => `<span class="multiselect-chip">${escapeHtml(n)}</span>`).join('')
           : '<span class="multiselect-placeholder">Выберите вишлисты</span>';
         panel.querySelectorAll('.multiselect-option').forEach((opt) => opt.classList.toggle('selected', selectedIds.has(opt.dataset.id)));
       };
-      wlSelect.innerHTML = wishlists.length === 0
+      wlSelect.innerHTML = editableWishlists.length === 0
         ? '<span style="color:var(--text-secondary);font-size:0.9rem;">Нет вишлистов</span>'
         : `<div class="multiselect-trigger" id="wlMultiselectTrigger"></div>
            <div class="multiselect-panel" id="wlMultiselectPanel">
-             ${wishlists.map((wl) => `<div class="multiselect-option" data-id="${escapeHtml(wl.id)}">${escapeHtml(wl.name)}</div>`).join('')}
+             ${editableWishlists.map((wl) => `<div class="multiselect-option" data-id="${escapeHtml(wl.id)}">${escapeHtml(wl.name)}</div>`).join('')}
            </div>`;
       const trigger = document.getElementById('wlMultiselectTrigger');
       const panel = document.getElementById('wlMultiselectPanel');
