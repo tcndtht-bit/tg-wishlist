@@ -505,8 +505,9 @@
   <div class="modal-overlay" id="shareWlModal">
     <div class="modal">
       <h2>Поделиться вишлистом</h2>
-      <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:12px;">Кто угодно по ссылке увидит вишлист и сможет забронировать карточки.</p>
+      <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:12px;">Отправь ссылку в Telegram — она откроется в боте. Кто угодно по ссылке увидит вишлист и сможет забронировать карточки.</p>
       <div class="share-link" id="shareWlLink" style="word-break:break-all;padding:12px;background:var(--bg-card);border-radius:8px;font-size:0.85rem;"></div>
+      <p id="shareWlHint" style="display:none;color:var(--accent);font-size:0.8rem;margin-top:8px;">Чтобы ссылка открывалась в боте, укажи <code>TELEGRAM_BOT</code> и <code>TELEGRAM_APP</code> в начале скрипта.</p>
       <div class="form-actions" style="margin-top:16px;">
         <button type="button" class="btn btn-secondary" id="shareWlClose">Закрыть</button>
         <button type="button" class="btn" id="shareWlCopy">Копировать</button>
@@ -517,8 +518,9 @@
   <div class="modal-overlay" id="inviteWlModal">
     <div class="modal">
       <h2>Пригласить соавтора</h2>
-      <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:12px;">Отправь ссылку — человек станет соавтором и сможет редактировать вишлист.</p>
+      <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:12px;">Отправь ссылку в Telegram — она откроется в боте, человек станет соавтором и сможет редактировать вишлист.</p>
       <div class="share-link" id="inviteWlLink" style="word-break:break-all;padding:12px;background:var(--bg-card);border-radius:8px;font-size:0.85rem;"></div>
+      <p id="inviteWlHint" style="display:none;color:var(--accent);font-size:0.8rem;margin-top:8px;">Чтобы ссылка открывалась в боте, укажи <code>TELEGRAM_BOT</code> и <code>TELEGRAM_APP</code> в начале скрипта.</p>
       <div class="form-actions" style="margin-top:16px;">
         <button type="button" class="btn btn-secondary" id="inviteWlClose">Закрыть</button>
         <button type="button" class="btn" id="inviteWlCopy">Копировать</button>
@@ -528,7 +530,6 @@
 
   <script>
     // --- Supabase: вставь свои данные из Project Settings → API ---
-    // Сначала выполни миграцию supabase-migration-add-user-to-wishes.sql
     const SUPABASE_URL = 'https://ieounwqtaxpozwdgbwpn.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imllb3Vud3F0YXhwb3p3ZGdid3BuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExMjI5ODgsImV4cCI6MjA4NjY5ODk4OH0.axb4HUzkz-VZ2pJZOR08gY-q4Na3U1gcxbK2eLtZRcg';
     let sb = null;
@@ -540,6 +541,11 @@
       }
     } catch (_) {}
     const useSupabase = !!sb;
+
+    // --- Telegram Bot: для ссылок «Поделиться» / «Пригласить» — чтобы открывались в боте ---
+    // Укажи username бота (без @) и short_name Mini App из BotFather
+    const TELEGRAM_BOT = '';   // например: MyWishlistBot
+    const TELEGRAM_APP = '';   // например: wishlist (короткое имя приложения в меню бота)
 
     const tg = window.Telegram?.WebApp;
     const WISHES_KEY = 'wishlist_wishes';
@@ -732,7 +738,11 @@
     }
 
     async function loadAll() {
-      const hash = window.location.hash.slice(1);
+      let hash = window.location.hash.slice(1);
+      const startParam = tg?.initDataUnsafe?.start_param;
+      if (!hash && startParam) {
+        if (startParam.startsWith('w_') || startParam.startsWith('i_')) hash = startParam.replace('_', '/');
+      }
       if (hash) {
         const shortW = /^w\/(.+)$/.exec(hash);
         const shortI = /^i\/(.+)$/.exec(hash);
@@ -1329,6 +1339,7 @@
           </div>
         </div>`;
       content.querySelectorAll('.btn-reserve').forEach((b) => b.addEventListener('click', () => reserveCard(b.dataset.cardId)));
+      content.querySelectorAll('.btn-unreserve').forEach((b) => b.addEventListener('click', () => unreserveCard(b.dataset.cardId)));
     }
 
     async function reserveCard(cardId) {
@@ -1343,6 +1354,27 @@
       const hash = window.location.hash.slice(1);
       if (hash.startsWith('w/') && useSupabase && sb) {
         await sb.from('reservations').upsert({ wish_id: cardId, user_id: userId, user_name: userName }, { onConflict: 'wish_id' });
+        history.replaceState(null, '', base + '#' + hash);
+      } else {
+        history.replaceState(null, '', base + '#' + packPayload(publicViewData));
+      }
+      render();
+      tg?.HapticFeedback?.notificationOccurred?.('success');
+    }
+
+    async function unreserveCard(cardId) {
+      if (!publicViewData) return;
+      const u = tg?.initDataUnsafe?.user;
+      const userId = u?.id ? 'tg_' + u.id : null;
+      const reserved = publicViewData.reservedCards?.[cardId];
+      if (!reserved || (userId && reserved.userId !== userId)) return;
+      const next = { ...(publicViewData.reservedCards || {}) };
+      delete next[cardId];
+      publicViewData.reservedCards = next;
+      const base = window.location.origin + window.location.pathname;
+      const hash = window.location.hash.slice(1);
+      if (hash.startsWith('w/') && useSupabase && sb) {
+        await sb.from('reservations').delete().eq('wish_id', cardId);
         history.replaceState(null, '', base + '#' + hash);
       } else {
         history.replaceState(null, '', base + '#' + packPayload(publicViewData));
@@ -1408,9 +1440,12 @@
              <button class="btn btn-secondary btn-sm btn-move card-move-btn" data-id="${w.id}">В вишлист</button>
            </div>`
         : '';
-      const reserveBtn = isPublicView && !reserved
-        ? `<button class="btn btn-sm btn-reserve" data-card-id="${w.id}">Забронировать</button>`
-        : '';
+      const isReservedByMe = reserved && reserved.userId === currentUserId;
+      let reserveBtn = '';
+      if (isPublicView) {
+        if (!reserved) reserveBtn = `<button class="btn btn-sm btn-reserve" data-card-id="${w.id}">Забронировать</button>`;
+        else if (isReservedByMe) reserveBtn = `<button class="btn btn-sm btn-secondary btn-unreserve" data-card-id="${w.id}">Я передумал</button>`;
+      }
       const actions = isPublicView
         ? `<div class="card-actions">${reserveBtn}</div>`
         : `<div class="card-actions">
@@ -1817,21 +1852,30 @@
       } catch (_) {}
     });
 
+    function buildShareUrl(type, wlId, payload) {
+      if (TELEGRAM_BOT && TELEGRAM_APP) {
+        const param = type === 'share' ? 'w_' + wlId : 'i_' + wlId;
+        return 'https://t.me/' + TELEGRAM_BOT + '/' + TELEGRAM_APP + '?startapp=' + param;
+      }
+      const base = window.location.origin + window.location.pathname;
+      return (useSupabase && sb) ? base + (type === 'share' ? '#w/' : '#i/') + wlId : base + '#' + packPayload(payload);
+    }
+
     function openShareModal(wlId) {
       const wl = wishlists.find((x) => x.id === wlId);
       if (!wl || wl.privacy !== 'public') return;
-      const base = window.location.origin + window.location.pathname;
-      const url = (useSupabase && sb) ? base + '#w/' + wlId : base + '#' + packPayload({ type: 'public', wishlist: wl, wishes: wishes.filter((w) => (w.wishlistIds || []).includes(wlId)), reservedCards: {} });
+      const url = buildShareUrl('share', wlId, { type: 'public', wishlist: wl, wishes: wishes.filter((w) => (w.wishlistIds || []).includes(wlId)), reservedCards: {} });
       document.getElementById('shareWlLink').textContent = url;
+      document.getElementById('shareWlHint').style.display = (TELEGRAM_BOT && TELEGRAM_APP) ? 'none' : 'block';
       document.getElementById('shareWlModal').classList.add('open');
     }
 
     function openInviteModal(wlId) {
       const wl = wishlists.find((x) => x.id === wlId);
       if (!wl || wl.privacy !== 'shared') return;
-      const base = window.location.origin + window.location.pathname;
-      const url = (useSupabase && sb) ? base + '#i/' + wlId : base + '#' + packPayload({ type: 'invite', wishlist: { ...wl, coAuthorIds: wl.coAuthorIds || [wl.ownerId] }, wishes: wishes.filter((w) => (w.wishlistIds || []).includes(wlId)) });
+      const url = buildShareUrl('invite', wlId, { type: 'invite', wishlist: { ...wl, coAuthorIds: wl.coAuthorIds || [wl.ownerId] }, wishes: wishes.filter((w) => (w.wishlistIds || []).includes(wlId)) });
       document.getElementById('inviteWlLink').textContent = url;
+      document.getElementById('inviteWlHint').style.display = (TELEGRAM_BOT && TELEGRAM_APP) ? 'none' : 'block';
       document.getElementById('inviteWlModal').classList.add('open');
     }
 
