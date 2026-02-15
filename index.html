@@ -292,6 +292,18 @@
     .card-reserved { opacity: 0.85; border-left: 3px solid var(--accent); }
     .card-reserved-badge { font-size: 0.8rem; color: var(--accent); margin-top: 6px; }
     .view-readonly .btn-edit, .view-readonly .btn-del, .view-readonly .btn-move { display: none !important; }
+    .main-buttons { display: flex; flex-direction: column; gap: 12px; margin-bottom: 32px; }
+    .main-buttons .btn { width: 100%; justify-content: center; }
+    .section-title { font-size: 1rem; color: var(--text-secondary); margin-bottom: 12px; }
+    .recent-list { display: flex; flex-direction: column; gap: 8px; }
+    .recent-item {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 16px; background: var(--bg-card); border-radius: 12px;
+      border: 1px solid var(--border); cursor: pointer; transition: transform 0.1s;
+    }
+    .recent-item:active { transform: scale(0.98); }
+    .recent-item img { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; }
+    .back-btn { background: transparent; color: var(--text-secondary); padding: 8px 0; margin-bottom: 16px; }
     @media (min-width: 480px) {
       .modal { border-radius: 24px; margin: auto 16px 16px; }
     }
@@ -299,19 +311,11 @@
 </head>
 <body>
   <div class="container">
-    <header>
+    <header id="mainHeader">
       <h1>Вишлист</h1>
-      <div class="header-actions">
-        <button class="btn btn-secondary edit-cats-btn" id="editCatsBtn">Править категории</button>
-        <button class="btn btn-secondary edit-wl-btn" id="editWlBtn">Править вишлисты</button>
-        <button class="btn" id="addBtn">+ Добавить</button>
-      </div>
     </header>
 
-    <div id="content">
-      <div id="userBadge" class="user-badge" style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:16px;"></div>
-      <div id="wishlist" class="wishlist"></div>
-    </div>
+    <div id="content"></div>
   </div>
 
   <!-- Wish modal -->
@@ -536,6 +540,8 @@
     let pendingWlImageBase64 = null;
     let publicViewData = null;
     let editingWlId = null;
+    let currentView = 'main';
+    let selectedWlId = null;
 
     function migrateWish(w) {
       const ids = Array.isArray(w.wishlistIds) ? w.wishlistIds : (w.wishlistId ? [w.wishlistId] : []);
@@ -703,7 +709,52 @@
       if (!wl.ownerId) wl.ownerId = wl.owner_id || currentUserId;
       if (!Array.isArray(wl.coAuthorIds) && wl.ownerId) wl.coAuthorIds = [wl.ownerId];
       if (!wl.privacy) wl.privacy = wl.privacy || 'private';
+      if (wl.updatedAt == null) wl.updatedAt = wl.updated_at ? new Date(wl.updated_at).getTime() : 0;
       return wl;
+    }
+
+    function navigateTo(view, wlId = null) {
+      currentView = view;
+      selectedWlId = wlId;
+      render();
+    }
+
+    function renderMain() {
+      const content = document.getElementById('content');
+      const visibleWishlists = wishlists.filter((wl) => {
+        if (wl.privacy === 'private') return wl.ownerId === currentUserId;
+        if (wl.privacy === 'shared') return canEditWishlist(wl);
+        return true;
+      });
+      const recent = [...visibleWishlists]
+        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+        .slice(0, 3);
+
+      content.innerHTML = `
+        <div class="main-buttons">
+          <button class="btn" data-nav="manageWishlists">Вишлисты</button>
+          <button class="btn btn-secondary" data-nav="manageCategories">Категории</button>
+          <button class="btn btn-secondary" data-nav="manageWishes">Желания</button>
+        </div>
+        <h3 class="section-title">Недавно изменённые</h3>
+        <div class="recent-list" id="recentList">
+          ${recent.length === 0
+            ? '<p style="color:var(--text-secondary);font-size:0.9rem;">Нет вишлистов</p>'
+            : recent.map((wl) => `
+              <div class="recent-item" data-wl-id="${escapeHtml(wl.id)}">
+                ${wl.image ? `<img src="${escapeHtml(wl.image)}" alt="">` : '<div style="width:44px;height:44px;background:var(--border);border-radius:8px;"></div>'}
+                <span>${escapeHtml(wl.name)}</span>
+              </div>
+            `).join('')}
+        </div>
+      `;
+
+      content.querySelectorAll('[data-nav]').forEach((b) => {
+        b.addEventListener('click', () => navigateTo(b.dataset.nav));
+      });
+      content.querySelectorAll('.recent-item').forEach((el) => {
+        el.addEventListener('click', () => navigateTo('wishlist', el.dataset.wlId));
+      });
     }
 
     function canEditWishlist(wl) {
@@ -724,6 +775,7 @@
         }
         for (const wl of wishlists) {
           const row = { id: wl.id, name: wl.name, image: wl.image, privacy: wl.privacy || 'private', owner_id: wl.ownerId || currentUserId };
+          if (wl.updatedAt) row.updated_at = new Date(wl.updatedAt).toISOString();
           await supabase.from('wishlists').upsert(row, { onConflict: 'id' });
           await supabase.from('wishlist_collaborators').delete().eq('wishlist_id', wl.id);
           for (const uid of (wl.coAuthorIds || [])) {
@@ -813,94 +865,324 @@
         renderPublicView();
         return;
       }
-      const list = document.getElementById('wishlist');
-      const userBadge = document.getElementById('userBadge');
-      if (tg?.initDataUnsafe?.user) {
-        userBadge.textContent = `Привет, ${tg.initDataUnsafe.user.first_name || 'пользователь'}!`;
-        userBadge.style.display = 'block';
-      } else userBadge.style.display = 'none';
-
-      const visibleWishlists = wishlists.filter((wl) => {
-        if (wl.privacy === 'private') return wl.ownerId === currentUserId;
-        if (wl.privacy === 'shared') return canEditWishlist(wl);
-        return true;
-      });
-
-      if (wishes.length === 0 && visibleWishlists.length === 0) {
-        list.innerHTML = `
-          <div class="empty-state">
-            <p>Нет желаний. Нажми «Добавить» — понадобятся фото и название.</p>
-            <button class="btn" id="emptyAdd">+ Добавить</button>
-          </div>`;
-        list.querySelector('#emptyAdd')?.addEventListener('click', openWishModal);
+      const content = document.getElementById('content');
+      if (currentView === 'main') {
+        renderMain();
         return;
       }
-
-      const getIds = (w) => (Array.isArray(w.wishlistIds) ? w.wishlistIds : []);
-      const standalone = wishes.filter((w) => getIds(w).length === 0);
-      const sections = [];
-
-      visibleWishlists.forEach((wl) => {
-        const wlWishes = wishes.filter((w) => getIds(w).includes(wl.id));
-        sections.push({ type: 'wishlist', wl, wishes: wlWishes });
-      });
-      if (standalone.length > 0) {
-        sections.push({ type: 'standalone', wishes: standalone });
+      if (currentView === 'manageWishlists') {
+        renderManageWishlists();
+        return;
       }
+      if (currentView === 'manageCategories') {
+        renderManageCategories();
+        return;
+      }
+      if (currentView === 'manageWishes') {
+        renderManageWishes();
+        return;
+      }
+      if (currentView === 'wishlist' && selectedWlId) {
+        renderWishlistDetail(selectedWlId);
+        return;
+      }
+      renderMain();
+    }
 
-      list.innerHTML = sections.map((sec) => {
-        const byCat = {};
-        (sec.wishes || []).forEach((w) => {
-          const c = w.category || 'Без категории';
-          if (!byCat[c]) byCat[c] = [];
-          byCat[c].push(w);
-        });
-        const catOrder = [...categories, 'Без категории'].filter((c) => byCat[c]?.length);
-        Object.keys(byCat).forEach((c) => {
-          if (!catOrder.includes(c)) catOrder.push(c);
-        });
+    function renderManageWishlists() {
+      const content = document.getElementById('content');
+      content.innerHTML = `
+        <button class="btn back-btn" data-nav-back>← Назад</button>
+        <h2 style="margin-bottom:20px;">Вишлисты</h2>
+        <div id="wlList" class="wl-manage-list"></div>
+        <div id="wlAddForm" class="wl-form-section" style="margin-top:24px;">
+          <h3 style="margin-bottom:12px;">Добавить вишлист</h3>
+          <div class="form-group">
+            <label><span class="required">*</span> Название</label>
+            <input type="text" id="newWlName" placeholder="Название вишлиста">
+          </div>
+          <div class="form-group">
+            <label>Обложка</label>
+            <div class="img-upload wl-add-img" id="wlImgUpload">
+              <input type="file" id="wlImage" accept="image/*">
+              <span id="wlImgText">Добавить обложку (необязательно)</span>
+              <img id="wlImgPreview" class="img-preview" style="display:none;max-height:120px;" alt="">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Приватность</label>
+            <select id="newWlPrivacy">
+              <option value="private">Приватный</option>
+              <option value="public">Публичный</option>
+              <option value="shared">Совместный</option>
+            </select>
+          </div>
+          <div class="form-actions" style="margin-top:16px;">
+            <button type="button" class="btn" id="addWlBtn">Добавить</button>
+          </div>
+        </div>
+        <div id="wlEditForm" style="display:none;"></div>
+      `;
+      content.querySelector('[data-nav-back]').addEventListener('click', () => navigateTo('main'));
+      refreshWlManageList();
+      bindWlManageHandlers();
+    }
 
-        const pr = sec.type === 'wishlist' ? sec.wl.privacy : null;
-        const prLabel = pr === 'private' ? 'Приватный' : (pr === 'public' ? 'Публичный' : (pr === 'shared' ? 'Совместный' : ''));
-        const shareBtn = pr === 'public' && isOwner(sec.wl)
-          ? `<button class="btn btn-sm btn-secondary" data-wl-share="${sec.wl.id}">Поделиться</button>` : '';
-        const inviteBtn = pr === 'shared' && isOwner(sec.wl)
-          ? `<button class="btn btn-sm btn-secondary" data-wl-invite="${sec.wl.id}">Пригласить</button>` : '';
-        const header = sec.type === 'wishlist'
-          ? `<div class="wl-section-header">
-               ${sec.wl.image ? `<img class="wl-section-img" src="${escapeHtml(sec.wl.image)}" alt="">` : ''}
-               <span class="wl-section-title">${escapeHtml(sec.wl.name)}</span>
-               ${prLabel ? `<span class="privacy-badge">${escapeHtml(prLabel)}</span>` : ''}
-               <span class="wl-header-actions">${shareBtn}${inviteBtn}</span>
-             </div>`
-          : `<div class="wl-section-header">
-               <span class="wl-section-title">Отдельные желания</span>
-             </div>`;
-
-        const body = catOrder.map((catName) => {
-          const items = byCat[catName] || [];
-          return `
-            <div class="categories-section">
-              <div class="category-title"><span class="count">${items.length}</span> ${escapeHtml(catName)}</div>
-              <div class="wishlist">${items.map((w) => renderCard(w, sec, null)).join('')}</div>
-            </div>`;
-        }).join('');
-
-        return `<div class="wl-section" data-type="${sec.type}" data-wl-id="${sec.wl?.id || ''}">${header}<div class="wl-section-body">${body}</div></div>`;
-      }).join('');
-
-      list.querySelectorAll('.btn-edit').forEach((b) => b.addEventListener('click', () => openWishModal(b.dataset.id)));
-      list.querySelectorAll('.btn-del').forEach((b) => b.addEventListener('click', () => deleteWish(b.dataset.id).catch(() => {})));
-      list.querySelectorAll('.btn-move').forEach((b) => b.addEventListener('click', (e) => toggleMoveMenu(e, b.dataset.id)));
+    function refreshWlManageList() {
+      const list = document.getElementById('wlList');
+      if (!list) return;
+      list.innerHTML = wishlists.length === 0
+        ? '<div class="empty-cats">Вишлистов нет. Добавь первый.</div>'
+        : wishlists.map((wl) => {
+            const pr = wl.privacy === 'private' ? 'Приватный' : (wl.privacy === 'public' ? 'Публичный' : 'Совместный');
+            const shareBtn = wl.privacy === 'public' && isOwner(wl) ? `<button class="btn btn-sm btn-secondary" data-wl-share="${escapeHtml(wl.id)}">Поделиться</button>` : '';
+            const inviteBtn = wl.privacy === 'shared' && isOwner(wl) ? `<button class="btn btn-sm btn-secondary" data-wl-invite="${escapeHtml(wl.id)}">Пригласить</button>` : '';
+            return `
+              <div class="wl-item" data-wl-id="${escapeHtml(wl.id)}">
+                ${wl.image ? `<img class="wl-item-img" src="${escapeHtml(wl.image)}" alt="">` : '<div class="wl-item-img" style="background:var(--border);flex-shrink:0;"></div>'}
+                <div class="wl-item-body">
+                  <div>${escapeHtml(wl.name)}</div>
+                  <span class="privacy-badge" style="font-size:0.7rem;margin-top:4px;display:inline-block;">${escapeHtml(pr)}</span>
+                  <div style="margin-top:8px;">${shareBtn}${inviteBtn}</div>
+                </div>
+                <span class="wl-item-edit" data-wl-id="${escapeHtml(wl.id)}" title="Редактировать">✎</span>
+                <span class="wl-item-remove" data-wl-id="${escapeHtml(wl.id)}">✕</span>
+              </div>`;
+          }).join('');
+      list.querySelectorAll('.wl-item-edit').forEach((el) => el.addEventListener('click', () => openEditWlFormInManage(el.dataset.wlId)));
+      list.querySelectorAll('.wl-item-remove').forEach((el) => el.addEventListener('click', () => removeWlInManage(el.dataset.wlId)));
       list.querySelectorAll('[data-wl-share]').forEach((b) => b.addEventListener('click', () => openShareModal(b.dataset.wlShare)));
       list.querySelectorAll('[data-wl-invite]').forEach((b) => b.addEventListener('click', () => openInviteModal(b.dataset.wlInvite)));
     }
 
+    function bindWlManageHandlers() {
+      document.getElementById('addWlBtn')?.addEventListener('click', addWlInManage);
+      document.getElementById('wlImage')?.addEventListener('change', async (e) => {
+        const f = e.target.files?.[0];
+        if (!f?.type?.startsWith('image/')) return;
+        try {
+          let b = await fileToBase64(f);
+          b = await resizeImageBase64(b, 400);
+          pendingWlImageBase64 = b;
+          const prev = document.getElementById('wlImgPreview');
+          const txt = document.getElementById('wlImgText');
+          if (prev) { prev.src = b; prev.style.display = 'block'; }
+          if (txt) txt.textContent = 'Файл выбран';
+        } catch (_) {}
+      });
+      document.getElementById('wlImgUpload')?.addEventListener('click', () => document.getElementById('wlImage')?.click());
+    }
+
+    async function addWlInManage() {
+      const name = document.getElementById('newWlName')?.value?.trim();
+      if (!name || validateName(name)) return;
+      const wl = { id: 'wl_' + Date.now(), name, image: pendingWlImageBase64 || null, privacy: document.getElementById('newWlPrivacy')?.value || 'private', ownerId: currentUserId, coAuthorIds: [currentUserId], updatedAt: Date.now() };
+      wishlists.push(wl);
+      await saveWishlists();
+      pendingWlImageBase64 = null;
+      document.getElementById('newWlName').value = '';
+      const prev = document.getElementById('wlImgPreview');
+      if (prev) { prev.style.display = 'none'; prev.src = ''; }
+      const txt = document.getElementById('wlImgText');
+      if (txt) txt.textContent = 'Добавить обложку (необязательно)';
+      document.getElementById('wlImage').value = '';
+      refreshWlManageList();
+      render();
+    }
+
+    async function removeWlInManage(wlId) {
+      wishes.forEach((w) => { const ids = Array.isArray(w.wishlistIds) ? w.wishlistIds : []; w.wishlistIds = ids.filter((id) => id !== wlId); });
+      wishlists = wishlists.filter((x) => x.id !== wlId);
+      await saveWishlists();
+      await saveWishes();
+      refreshWlManageList();
+      render();
+    }
+
+    function openEditWlFormInManage(wlId) {
+      const wl = wishlists.find((x) => x.id === wlId);
+      if (!wl) return;
+      editingWlId = wlId;
+      document.getElementById('wlAddForm').style.display = 'none';
+      let editForm = document.getElementById('wlEditForm');
+      editForm.style.display = 'block';
+      editForm.innerHTML = `
+        <h3 style="margin-bottom:12px;">Редактировать вишлист</h3>
+        <div class="form-group">
+          <label><span class="required">*</span> Название</label>
+          <input type="text" id="editWlName" value="${escapeHtml(wl.name)}" placeholder="Название вишлиста">
+        </div>
+        <div class="form-group">
+          <label>Приватность</label>
+          <select id="editWlPrivacy">
+            <option value="private" ${wl.privacy === 'private' ? 'selected' : ''}>Приватный</option>
+            <option value="public" ${wl.privacy === 'public' ? 'selected' : ''}>Публичный</option>
+            <option value="shared" ${wl.privacy === 'shared' ? 'selected' : ''}>Совместный</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Картинка</label>
+          <div class="img-upload wl-add-img" id="wlImgUploadEdit">
+            <input type="file" id="wlImageEdit" accept="image/*">
+            <span id="wlImgTextEdit">Обложка</span>
+            <img id="wlImgPreviewEdit" class="img-preview" style="display:${wl.image ? 'block' : 'none'};max-height:120px;" src="${wl.image || ''}" alt="">
+          </div>
+        </div>
+        <div class="form-actions" style="margin-top:16px;">
+          <button type="button" class="btn btn-secondary" id="editWlCancel">Отмена</button>
+          <button type="button" class="btn" id="editWlSave">Сохранить</button>
+        </div>
+      `;
+      document.getElementById('editWlName').focus();
+      document.getElementById('editWlCancel').addEventListener('click', () => { editingWlId = null; document.getElementById('wlAddForm').style.display = 'block'; document.getElementById('wlEditForm').style.display = 'none'; document.getElementById('wlEditForm').innerHTML = ''; renderManageWishlists(); });
+      document.getElementById('editWlSave').addEventListener('click', saveEditWlInManage);
+      document.getElementById('wlImageEdit').addEventListener('change', (e) => {
+        const f = e.target.files?.[0];
+        if (f) fileToBase64(f).then((b) => { document.getElementById('wlImgPreviewEdit').src = b; document.getElementById('wlImgPreviewEdit').style.display = 'block'; document.getElementById('wlImgTextEdit').textContent = 'Файл выбран'; pendingEditWlImage = b; });
+      });
+      document.getElementById('wlImgUploadEdit').addEventListener('click', () => document.getElementById('wlImageEdit').click());
+    }
+
+    let pendingEditWlImage = null;
+    async function saveEditWlInManage() {
+      const wl = wishlists.find((x) => x.id === editingWlId);
+      if (!wl) return;
+      const name = document.getElementById('editWlName')?.value?.trim();
+      if (!name || validateName(name)) return;
+      wl.name = name;
+      wl.privacy = document.getElementById('editWlPrivacy')?.value || 'private';
+      if (pendingEditWlImage) wl.image = pendingEditWlImage;
+      wl.updatedAt = Date.now();
+      pendingEditWlImage = null;
+      await saveWishlists();
+      editingWlId = null;
+      renderManageWishlists();
+    }
+
+    function renderManageCategories() {
+      const content = document.getElementById('content');
+      content.innerHTML = `
+        <button class="btn back-btn" data-nav-back>← Назад</button>
+        <h2 style="margin-bottom:20px;">Категории</h2>
+        <div id="catList" class="cat-list"></div>
+        <div class="cat-add" style="margin-top:16px;">
+          <input type="text" id="newCatName" placeholder="Новая категория">
+          <button class="btn" id="addCatBtn">Добавить</button>
+        </div>
+      `;
+      content.querySelector('[data-nav-back]').addEventListener('click', () => navigateTo('main'));
+      const list = document.getElementById('catList');
+      list.innerHTML = categories.length === 0
+        ? '<div class="empty-cats">Категорий нет. Добавь свою.</div>'
+        : categories.map((c) => `
+            <div class="cat-item" data-cat="${escapeHtml(c)}">
+              <span>${escapeHtml(c)}</span>
+              <span class="cat-item-remove" data-cat="${escapeHtml(c)}">✕</span>
+            </div>`).join('');
+      list.querySelectorAll('.cat-item-remove').forEach((el) => {
+        el.addEventListener('click', async () => {
+          categories = categories.filter((x) => x !== el.dataset.cat);
+          await saveCategories();
+          renderManageCategories();
+        });
+      });
+      document.getElementById('addCatBtn').addEventListener('click', async () => {
+        const v = document.getElementById('newCatName').value.trim();
+        if (!v || !/^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]+$/.test(v)) return;
+        if (categories.includes(v)) return;
+        categories.push(v);
+        await saveCategories();
+        document.getElementById('newCatName').value = '';
+        renderManageCategories();
+      });
+      document.getElementById('newCatName').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('addCatBtn').click(); });
+    }
+
+    function renderManageWishes() {
+      const content = document.getElementById('content');
+      content.innerHTML = `
+        <button class="btn back-btn" data-nav-back>← Назад</button>
+        <h2 style="margin-bottom:20px;">Желания</h2>
+        <button class="btn" id="addWishBtn" style="margin-bottom:16px;">+ Добавить желание</button>
+        <div id="wishList" class="wishlist"></div>
+      `;
+      content.querySelector('[data-nav-back]').addEventListener('click', () => navigateTo('main'));
+      document.getElementById('addWishBtn').addEventListener('click', () => openWishModal());
+
+      const list = document.getElementById('wishList');
+      if (wishes.length === 0) {
+        list.innerHTML = '<div class="empty-state"><p>Нет желаний. Нажми «Добавить желание».</p></div>';
+        return;
+      }
+      const byCat = {};
+      wishes.forEach((w) => { const c = w.category || 'Без категории'; if (!byCat[c]) byCat[c] = []; byCat[c].push(w); });
+      const catOrder = [...categories, 'Без категории'].filter((c) => byCat[c]?.length);
+      Object.keys(byCat).forEach((c) => { if (!catOrder.includes(c)) catOrder.push(c); });
+      list.innerHTML = catOrder.map((catName) => {
+        const items = byCat[catName] || [];
+        return `
+          <div class="categories-section">
+            <div class="category-title"><span class="count">${items.length}</span> ${escapeHtml(catName)}</div>
+            <div class="wishlist">${items.map((w) => renderCard(w, { type: 'standalone' }, null)).join('')}</div>
+          </div>`;
+      }).join('');
+      list.querySelectorAll('.btn-edit').forEach((b) => b.addEventListener('click', () => openWishModal(b.dataset.id)));
+      list.querySelectorAll('.btn-del').forEach((b) => b.addEventListener('click', () => deleteWish(b.dataset.id).then(() => render()).catch(() => {})));
+      list.querySelectorAll('.btn-move').forEach((b) => b.addEventListener('click', (e) => toggleMoveMenu(e, b.dataset.id)));
+    }
+
+    function renderWishlistDetail(wlId) {
+      const wl = wishlists.find((x) => x.id === wlId);
+      if (!wl) { navigateTo('main'); return; }
+      const content = document.getElementById('content');
+      const getIds = (w) => (Array.isArray(w.wishlistIds) ? w.wishlistIds : []);
+      const wlWishes = wishes.filter((w) => getIds(w).includes(wlId));
+      const byCat = {};
+      wlWishes.forEach((w) => { const c = w.category || 'Без категории'; if (!byCat[c]) byCat[c] = []; byCat[c].push(w); });
+      const catOrder = [...categories, 'Без категории'].filter((c) => byCat[c]?.length);
+      Object.keys(byCat).forEach((c) => { if (!catOrder.includes(c)) catOrder.push(c); });
+      const pr = wl.privacy;
+      const prLabel = pr === 'private' ? 'Приватный' : (pr === 'public' ? 'Публичный' : (pr === 'shared' ? 'Совместный' : ''));
+      const shareBtn = pr === 'public' && isOwner(wl) ? `<button class="btn btn-sm btn-secondary" data-wl-share="${wl.id}">Поделиться</button>` : '';
+      const inviteBtn = pr === 'shared' && isOwner(wl) ? `<button class="btn btn-sm btn-secondary" data-wl-invite="${wl.id}">Пригласить</button>` : '';
+      const sec = { type: 'wishlist', wl, wishes: wlWishes };
+
+      content.innerHTML = `
+        <button class="btn back-btn" data-nav-back>← Назад</button>
+        <div class="wl-section-header" style="margin-bottom:16px;">
+          ${wl.image ? `<img class="wl-section-img" src="${escapeHtml(wl.image)}" alt="">` : ''}
+          <span class="wl-section-title">${escapeHtml(wl.name)}</span>
+          ${prLabel ? `<span class="privacy-badge">${escapeHtml(prLabel)}</span>` : ''}
+          <span class="wl-header-actions">${shareBtn}${inviteBtn}</span>
+        </div>
+        <button class="btn" id="addWishToWl" style="margin-bottom:16px;">+ Добавить желание</button>
+        <div id="wlWishlistCards" class="wl-section-body"></div>
+      `;
+      content.querySelector('[data-nav-back]').addEventListener('click', () => navigateTo('main'));
+
+      const cardsEl = document.getElementById('wlWishlistCards');
+      cardsEl.innerHTML = catOrder.length === 0
+        ? '<div class="empty-state"><p>Нет желаний в этом вишлисте.</p></div>'
+        : catOrder.map((catName) => {
+            const items = byCat[catName] || [];
+            return `
+              <div class="categories-section">
+                <div class="category-title"><span class="count">${items.length}</span> ${escapeHtml(catName)}</div>
+                <div class="wishlist">${items.map((w) => renderCard(w, sec, null)).join('')}</div>
+              </div>`;
+          }).join('');
+
+      content.querySelector('#addWishToWl')?.addEventListener('click', () => { openWishModal(null, wlId); });
+      content.querySelectorAll('[data-wl-share]').forEach((b) => b.addEventListener('click', () => openShareModal(b.dataset.wlShare)));
+      content.querySelectorAll('[data-wl-invite]').forEach((b) => b.addEventListener('click', () => openInviteModal(b.dataset.wlInvite)));
+      cardsEl.querySelectorAll('.btn-edit').forEach((b) => b.addEventListener('click', () => openWishModal(b.dataset.id)));
+      cardsEl.querySelectorAll('.btn-del').forEach((b) => b.addEventListener('click', () => deleteWish(b.dataset.id).then(() => { wl.updatedAt = Date.now(); saveWishlists(); render(); }).catch(() => {})));
+      cardsEl.querySelectorAll('.btn-move').forEach((b) => b.addEventListener('click', (e) => toggleMoveMenu(e, b.dataset.id)));
+    }
+
     function renderPublicView() {
       const d = publicViewData;
-      const list = document.getElementById('wishlist');
-      document.getElementById('content').querySelector('.user-badge').style.display = 'none';
-      document.querySelector('.header-actions')?.remove();
+      const content = document.getElementById('content');
       const wl = d.wishlist || {};
       const items = d.wishes || [];
       const reserved = d.reservedCards || {};
@@ -911,7 +1193,7 @@
         byCat[c].push(w);
       });
       const catOrder = Object.keys(byCat);
-      list.innerHTML = `
+      content.innerHTML = `
         <div class="wl-section">
           <div class="wl-section-header">
             ${wl.image ? `<img class="wl-section-img" src="${escapeHtml(wl.image)}" alt="">` : ''}
@@ -928,7 +1210,7 @@
             }).join('')}
           </div>
         </div>`;
-      list.querySelectorAll('.btn-reserve').forEach((b) => b.addEventListener('click', () => reserveCard(b.dataset.cardId)));
+      content.querySelectorAll('.btn-reserve').forEach((b) => b.addEventListener('click', () => reserveCard(b.dataset.cardId)));
     }
 
     function reserveCard(cardId) {
@@ -980,7 +1262,10 @@
       if (idx >= 0) ids.splice(idx, 1);
       else ids.push(wlId);
       w.wishlistIds = ids;
+      const wl = wishlists.find((x) => x.id === wlId);
+      if (wl) wl.updatedAt = Date.now();
       await saveWishes();
+      await saveWishlists();
       render();
       tg?.HapticFeedback?.notificationOccurred?.('success');
     }
@@ -1022,7 +1307,7 @@
         </div>`;
     }
 
-    function openWishModal(editId = null) {
+    function openWishModal(editId = null, defaultWlId = null) {
       tg?.HapticFeedback?.impactOccurred?.('light');
       pendingImageBase64 = null;
       const form = document.getElementById('wishForm');
@@ -1048,6 +1333,11 @@
           <span>${escapeHtml(wl.name)}</span>
         </label>`).join('');
 
+      if (!editId && defaultWlId) {
+        wlChecks.querySelectorAll('input[name="wishWishlist"]').forEach((cb) => {
+          cb.checked = cb.value === defaultWlId;
+        });
+      }
       if (editId) {
         const w = wishes.find((x) => x.id === editId);
         if (w) {
@@ -1181,7 +1471,9 @@
       if (idx >= 0) wishes[idx] = { ...wishes[idx], ...payload };
       else wishes.push(payload);
 
+      wishlistIds.forEach((wlId) => { const wl = wishlists.find((x) => x.id === wlId); if (wl) wl.updatedAt = Date.now(); });
       await saveWishes();
+      await saveWishlists();
       render();
       closeWishModal();
       tg?.HapticFeedback?.notificationOccurred?.('success');
@@ -1194,7 +1486,6 @@
       render();
     }
 
-    document.getElementById('addBtn').addEventListener('click', openWishModal);
     document.getElementById('wishCancel').addEventListener('click', closeWishModal);
     document.getElementById('wishModal').addEventListener('click', (e) => {
       if (e.target.id === 'wishModal') closeWishModal();
@@ -1221,7 +1512,6 @@
       document.getElementById('catsModal').classList.add('open');
     }
 
-    document.getElementById('editCatsBtn').addEventListener('click', openCatsModal);
     document.getElementById('catsClose').addEventListener('click', () => document.getElementById('catsModal').classList.remove('open'));
     document.getElementById('catsModal').addEventListener('click', (e) => {
       if (e.target.id === 'catsModal') e.target.classList.remove('open');
@@ -1287,7 +1577,6 @@
       document.getElementById('wlModal').classList.add('open');
     }
 
-    document.getElementById('editWlBtn').addEventListener('click', openWlModal);
     document.getElementById('wlClose').addEventListener('click', () => document.getElementById('wlModal').classList.remove('open'));
     document.getElementById('wlModal').addEventListener('click', (e) => {
       if (e.target.id === 'wlModal') e.target.classList.remove('open');
@@ -1427,7 +1716,7 @@
     document.getElementById('inviteWlModal').addEventListener('click', (e) => { if (e.target.id === 'inviteWlModal') e.target.classList.remove('open'); });
 
     (async function init() {
-      document.getElementById('wishlist').innerHTML = '<p style="text-align:center;padding:40px;color:var(--text-secondary);">Загрузка...</p>';
+      document.getElementById('content').innerHTML = '<p style="text-align:center;padding:40px;color:var(--text-secondary);">Загрузка...</p>';
       await loadAll();
       render();
     })();
