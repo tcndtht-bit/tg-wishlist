@@ -310,6 +310,7 @@
   </style>
 </head>
 <body>
+  <!-- v:2025-02-15-2 -->
   <div class="container">
     <header id="mainHeader">
       <h1>Вишлист</h1>
@@ -525,16 +526,18 @@
     const SIZE_RE = /^[a-zA-Z0-9\s\-.]*$/;
     const URL_RE = /^(https?:\/\/)?([\w-]+\.)+[\w-]+(\/[\w\-./?%&=]*)?$/i;
 
-    if (tg) {
-      tg.ready();
-      tg.expand();
-      tg.enableClosingConfirmation();
-      document.body.style.background = tg.themeParams?.bg_color || 'var(--bg-primary)';
-      if (tg.themeParams?.text_color) document.body.style.color = tg.themeParams.text_color;
-      if (tg.themeParams?.secondary_bg_color) document.documentElement.style.setProperty('--bg-secondary', tg.themeParams.secondary_bg_color);
-      document.body.classList.toggle('light', tg.colorScheme === 'light');
-      tg.setHeaderColor(tg.themeParams?.bg_color || '#1a1a2e');
-    }
+    try {
+      if (tg) {
+        tg.ready();
+        tg.expand();
+        tg.enableClosingConfirmation();
+        document.body.style.background = tg.themeParams?.bg_color || 'var(--bg-primary)';
+        if (tg.themeParams?.text_color) document.body.style.color = tg.themeParams.text_color;
+        if (tg.themeParams?.secondary_bg_color) document.documentElement.style.setProperty('--bg-secondary', tg.themeParams.secondary_bg_color);
+        document.body.classList.toggle('light', tg.colorScheme === 'light');
+        tg.setHeaderColor(tg.themeParams?.bg_color || '#1a1a2e');
+      }
+    } catch (_) {}
 
     const CLIENT_ID_KEY = 'wishlist_client_id';
     let _memStorage = {};
@@ -762,7 +765,7 @@
     window.__nav = navigateTo;
     document.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-nav]');
-      if (btn) { e.preventDefault(); navigateTo(btn.dataset.nav); return; }
+      if (btn) { e.preventDefault(); try { navigateTo(btn.dataset.nav); } catch (err) { console.error('nav err:', err); } return; }
       const back = e.target.closest('[data-nav-back]');
       if (back) { e.preventDefault(); navigateTo('main'); return; }
       const recent = e.target.closest('.recent-item[data-wl-id]');
