@@ -1938,9 +1938,14 @@
       if (!wl || wl.privacy !== 'public') return;
       const ownerName = tg?.initDataUnsafe?.user?.username ? '@' + tg.initDataUnsafe.user.username : (tg?.initDataUnsafe?.user?.first_name || 'Пользователь');
       const url = buildShareUrl('share', wlId, { type: 'public', wishlist: wl, wishes: wishes.filter((w) => (w.wishlistIds || []).includes(wlId)), reservedCards: {}, ownerName });
-      document.getElementById('shareWlLink').textContent = url;
-      document.getElementById('shareWlHint').style.display = (TELEGRAM_BOT && TELEGRAM_APP) ? 'none' : 'block';
-      document.getElementById('shareWlModal').classList.add('open');
+      if (tg?.openTelegramLink) {
+        const text = `Посмотри мой вишлист «${wl.name || 'Вишлист'}»!`;
+        tg.openTelegramLink('https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(text));
+      } else {
+        document.getElementById('shareWlLink').textContent = url;
+        document.getElementById('shareWlHint').style.display = (TELEGRAM_BOT && TELEGRAM_APP) ? 'none' : 'block';
+        document.getElementById('shareWlModal').classList.add('open');
+      }
     }
 
     function openInviteModal(wlId) {
@@ -1948,9 +1953,14 @@
       if (!wl || wl.privacy !== 'shared') return;
       const invOwnerName = tg?.initDataUnsafe?.user?.username ? '@' + tg.initDataUnsafe.user.username : (tg?.initDataUnsafe?.user?.first_name || 'Пользователь');
       const url = buildShareUrl('invite', wlId, { type: 'invite', wishlist: { ...wl, coAuthorIds: wl.coAuthorIds || [wl.ownerId] }, wishes: wishes.filter((w) => (w.wishlistIds || []).includes(wlId)), ownerName: invOwnerName });
-      document.getElementById('inviteWlLink').textContent = url;
-      document.getElementById('inviteWlHint').style.display = (TELEGRAM_BOT && TELEGRAM_APP) ? 'none' : 'block';
-      document.getElementById('inviteWlModal').classList.add('open');
+      if (tg?.openTelegramLink) {
+        const text = `Присоединяйся к вишлисту «${wl.name || 'Вишлист'}» как соавтор!`;
+        tg.openTelegramLink('https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(text));
+      } else {
+        document.getElementById('inviteWlLink').textContent = url;
+        document.getElementById('inviteWlHint').style.display = (TELEGRAM_BOT && TELEGRAM_APP) ? 'none' : 'block';
+        document.getElementById('inviteWlModal').classList.add('open');
+      }
     }
 
     document.getElementById('shareWlClose').addEventListener('click', () => document.getElementById('shareWlModal').classList.remove('open'));
