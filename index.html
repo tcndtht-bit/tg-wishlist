@@ -529,11 +529,18 @@
     }
 
     const CLIENT_ID_KEY = 'wishlist_client_id';
+    let _memStorage = {};
+    function safeGetItem(key) {
+      try { return localStorage.getItem(key); } catch (_) { return _memStorage[key] ?? null; }
+    }
+    function safeSetItem(key, val) {
+      try { localStorage.setItem(key, val); } catch (_) { _memStorage[key] = val; }
+    }
     function getCurrentUserId() {
       const u = tg?.initDataUnsafe?.user;
       if (u?.id) return 'tg_' + u.id;
-      let cid = localStorage.getItem(CLIENT_ID_KEY);
-      if (!cid) { cid = 'anon_' + Date.now() + '_' + Math.random().toString(36).slice(2); localStorage.setItem(CLIENT_ID_KEY, cid); }
+      let cid = safeGetItem(CLIENT_ID_KEY);
+      if (!cid) { cid = 'anon_' + Date.now() + '_' + Math.random().toString(36).slice(2); safeSetItem(CLIENT_ID_KEY, cid); }
       return cid;
     }
     const currentUserId = getCurrentUserId();
@@ -620,7 +627,7 @@
       }
       publicViewData = null;
       try {
-        return JSON.parse(localStorage.getItem(WISHES_KEY) || '[]').map(migrateWish);
+        return JSON.parse(safeGetItem(WISHES_KEY) || '[]').map(migrateWish);
       } catch (_) { return []; }
     }
 
@@ -632,8 +639,8 @@
         await ensureUser();
         await supabase.from('wishlist_collaborators').upsert({ wishlist_id: wl.id, user_id: currentUserId }, { onConflict: 'wishlist_id,user_id' });
       } else {
-        const wls = JSON.parse(localStorage.getItem(WISHLISTS_KEY) || '[]');
-        const wis = JSON.parse(localStorage.getItem(WISHES_KEY) || '[]').map(migrateWish);
+        const wls = JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]');
+        const wis = JSON.parse(safeGetItem(WISHES_KEY) || '[]').map(migrateWish);
         const existing = wls.find((x) => x.id === wl.id);
         const coAuthorIds = Array.isArray(wl.coAuthorIds) ? [...wl.coAuthorIds] : (wl.ownerId ? [wl.ownerId] : []);
         if (!coAuthorIds.includes(currentUserId)) coAuthorIds.push(currentUserId);
@@ -646,8 +653,8 @@
           if (ei >= 0) { if (!newWis[ei].wishlistIds?.includes(wl.id)) newWis[ei].wishlistIds = [...(newWis[ei].wishlistIds || []), wl.id]; }
           else newWis.push(mw);
         });
-        localStorage.setItem(WISHLISTS_KEY, JSON.stringify(newWls));
-        localStorage.setItem(WISHES_KEY, JSON.stringify(newWis));
+        safeSetItem(WISHLISTS_KEY, JSON.stringify(newWls));
+        safeSetItem(WISHES_KEY, JSON.stringify(newWis));
       }
       window.location.hash = '';
       window.location.reload();
@@ -682,9 +689,9 @@
       } else {
         wishes = loadWishesSync();
         wishes = Array.isArray(wishes) ? wishes : [];
-        try { wishlists = (JSON.parse(localStorage.getItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
+        try { wishlists = (JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
         wishlists = Array.isArray(wishlists) ? wishlists : [];
-        try { const raw = localStorage.getItem(CATS_KEY); categories = raw ? JSON.parse(raw) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
+        try { const raw = safeGetItem(CATS_KEY); categories = raw ? JSON.parse(raw) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
         categories = Array.isArray(categories) ? categories : [...DEFAULT_CATS];
       }
     }
@@ -701,7 +708,7 @@
         const localIds = new Set(wishes.map((w) => w.id));
         for (const r of (dbRows || [])) { if (!localIds.has(r.id)) await supabase.from('wishes').delete().eq('id', r.id); }
       } else {
-        try { localStorage.setItem(WISHES_KEY, JSON.stringify(wishes)); } catch (e) { tg?.showAlert?.('Не удалось сохранить.'); }
+        try { safeSetItem(WISHES_KEY, JSON.stringify(wishes)); } catch (e) { tg?.showAlert?.('Не удалось сохранить.'); }
       }
     }
 
@@ -710,7 +717,7 @@
         await supabase.from('categories').delete().eq('user_id', currentUserId);
         for (const name of categories) await supabase.from('categories').insert({ user_id: currentUserId, name });
       } else {
-        localStorage.setItem(CATS_KEY, JSON.stringify(categories));
+        safeSetItem(CATS_KEY, JSON.stringify(categories));
       }
     }
 
@@ -792,7 +799,7 @@
           }
         }
       } else {
-        localStorage.setItem(WISHLISTS_KEY, JSON.stringify(wishlists));
+        safeSetItem(WISHLISTS_KEY, JSON.stringify(wishlists));
       }
     }
 
@@ -1490,7 +1497,7 @@
       render();
       closeWishModal();
       tg?.HapticFeedback?.notificationOccurred?.('success');
-    });
+    }));
 
     async function deleteWish(id) {
       tg?.HapticFeedback?.impactOccurred?.('medium');
@@ -1735,9 +1742,9 @@
       const fallbackToLocal = function() {
         publicViewData = null;
         currentView = 'main';
-        try { wishes = JSON.parse(localStorage.getItem(WISHES_KEY) || '[]').map(migrateWish); } catch (_) { wishes = []; }
-        try { wishlists = (JSON.parse(localStorage.getItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
-        try { const r = localStorage.getItem(CATS_KEY); categories = r ? JSON.parse(r) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
+        try { wishes = JSON.parse(safeGetItem(WISHES_KEY) || '[]').map(migrateWish); } catch (_) { wishes = []; }
+        try { wishlists = (JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
+        try { const r = safeGetItem(CATS_KEY); categories = r ? JSON.parse(r) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
         if (!Array.isArray(wishlists)) wishlists = [];
         if (!Array.isArray(wishes)) wishes = [];
         if (!Array.isArray(categories)) categories = [...DEFAULT_CATS];
