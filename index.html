@@ -317,9 +317,9 @@
 
     <div id="content">
       <div class="main-buttons">
-        <button class="btn" data-nav="manageWishlists">Вишлисты</button>
-        <button class="btn btn-secondary" data-nav="manageCategories">Категории</button>
-        <button class="btn btn-secondary" data-nav="manageWishes">Желания</button>
+        <button class="btn" data-nav="manageWishlists" onclick="window.__nav&&window.__nav('manageWishlists')">Вишлисты</button>
+        <button class="btn btn-secondary" data-nav="manageCategories" onclick="window.__nav&&window.__nav('manageCategories')">Категории</button>
+        <button class="btn btn-secondary" data-nav="manageWishes" onclick="window.__nav&&window.__nav('manageWishes')">Желания</button>
       </div>
       <h3 class="section-title">Недавно изменённые</h3>
       <div class="recent-list"><p style="color:var(--text-secondary);font-size:0.9rem;">Нет вишлистов</p></div>
@@ -759,6 +759,7 @@
       selectedWlId = wlId;
       render();
     }
+    window.__nav = navigateTo;
 
     function renderMain() {
       const content = document.getElementById('content');
