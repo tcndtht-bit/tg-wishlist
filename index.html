@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Вишлист</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg-primary: #1a1a2e;
+      --bg-secondary: #16213e;
+      --bg-card: #0f3460;
+      --accent: #e94560;
+      --text-primary: #eaeaea;
+      --text-secondary: #a0a0a0;
+      --border: rgba(255,255,255,0.1);
+      --shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+    body.light {
+      --bg-primary: #f5f5f7;
+      --bg-secondary: #ffffff;
+      --bg-card: #ffffff;
+      --text-primary: #1d1d1f;
+      --text-secondary: #6e6e73;
+      --border: rgba(0,0,0,0.1);
+      --shadow: 0 4px 20px rgba(0,0,0,0.08);
+    }
+    .container { max-width: 480px; margin: 0 auto; padding: 16px; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    h1 { font-size: 1.5rem; font-weight: 700; }
+    .btn {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 12px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+    .btn-sm { font-size: 0.8rem; padding: 6px 12px; }
+    .btn-icon {
+      width: 40px; height: 40px; padding: 0;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+    }
+    .header-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .edit-cats-btn, .edit-wl-btn {
+      font-size: 0.8rem;
+      padding: 6px 10px;
+      color: var(--text-secondary);
+      background: transparent;
+      border: 1px dashed var(--border);
+    }
+    .wl-section {
+      margin-bottom: 24px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      background: var(--bg-card);
+    }
+    .wl-section-header {
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--border);
+      min-height: 52px;
+    }
+    .wl-section-img {
+      width: 40px;
+      height: 40px;
+      object-fit: cover;
+      border-radius: 8px;
+      background: var(--bg-secondary);
+    }
+    .wl-section-title { font-weight: 600; font-size: 1rem; }
+    .wl-section-body { padding: 12px 16px; }
+    .categories-section { margin: 20px 0; }
+    .category-title {
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .category-title .count { font-weight: 600; color: var(--text-primary); }
+    .wishlist { margin-top: 12px; }
+    .card {
+      background: var(--bg-card);
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 12px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+    }
+    .card-img {
+      width: 100%;
+      height: 160px;
+      object-fit: cover;
+      border-radius: 12px;
+      margin-bottom: 12px;
+      background: var(--bg-secondary);
+    }
+    .card-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 8px; word-break: break-word; }
+    .card-meta { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 4px; }
+    .card-price { font-size: 1.2rem; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+    .card-link {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      text-decoration: none;
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .card-comment { font-size: 0.9rem; margin-top: 8px; opacity: 0.9; }
+    .card-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .card-move-wrap { position: relative; }
+    .card-move-btn { padding: 6px 10px; font-size: 0.8rem; }
+    .card-move-menu {
+      position: absolute;
+      bottom: 100%;
+      left: 0;
+      margin-bottom: 4px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px 0;
+      min-width: 160px;
+      z-index: 10;
+      box-shadow: var(--shadow);
+    }
+    .card-move-menu button {
+      display: block;
+      width: 100%;
+      padding: 8px 12px;
+      text-align: left;
+      background: none;
+      border: none;
+      color: var(--text-primary);
+      font-size: 0.9rem;
+      cursor: pointer;
+    }
+    .card-move-menu button:hover { background: var(--bg-card); }
+    .empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-secondary);
+    }
+    .empty-state p { margin-bottom: 16px; }
+    .empty-cats { font-size: 0.9rem; color: var(--text-secondary); margin-top: 8px; }
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: 0.3s;
+    }
+    .modal-overlay.open { opacity: 1; visibility: visible; }
+    .modal {
+      background: var(--bg-secondary);
+      border-radius: 24px 24px 0 0;
+      width: 100%;
+      max-width: 480px;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 24px;
+      transform: translateY(100%);
+      transition: transform 0.3s;
+    }
+    .modal-overlay.open .modal { transform: translateY(0); }
+    .modal h2 { margin-bottom: 20px; font-size: 1.25rem; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+    }
+    .form-group label .required { color: var(--accent); }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-size: 1rem;
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .form-group textarea { min-height: 80px; resize: vertical; }
+    .form-row { display: flex; gap: 12px; }
+    .form-row .form-group { flex: 1; }
+    .form-row .form-group:last-child { flex: 0 0 100px; }
+    .img-upload {
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .img-upload:hover, .img-upload.dragover { border-color: var(--accent); }
+    .img-upload input { display: none; }
+    .img-preview {
+      max-width: 100%;
+      max-height: 200px;
+      border-radius: 12px;
+      margin-top: 12px;
+    }
+    .form-actions { display: flex; gap: 12px; margin-top: 24px; }
+    .form-actions .btn { flex: 1; }
+    .error-msg { font-size: 0.8rem; color: var(--accent); margin-top: 4px; }
+    .cat-list { margin-top: 12px; }
+    .cat-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: var(--bg-card);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      border: 1px solid var(--border);
+    }
+    .cat-item-remove { color: var(--accent); cursor: pointer; padding: 4px; }
+    .cat-add { display: flex; gap: 8px; margin-top: 12px; }
+    .cat-add input { flex: 1; }
+    .wl-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      background: var(--bg-card);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      border: 1px solid var(--border);
+    }
+    .wl-item-img {
+      width: 48px;
+      height: 48px;
+      object-fit: cover;
+      border-radius: 8px;
+      background: var(--bg-secondary);
+    }
+    .wl-item-body { flex: 1; }
+    .wl-item-remove { color: var(--accent); cursor: pointer; padding: 4px; }
+    .wl-add-img { height: 80px; }
+    @media (min-width: 480px) {
+      .modal { border-radius: 24px; margin: auto 16px 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Вишлист</h1>
+      <div class="header-actions">
+        <button class="btn btn-secondary edit-cats-btn" id="editCatsBtn">Править категории</button>
+        <button class="btn btn-secondary edit-wl-btn" id="editWlBtn">Править вишлисты</button>
+        <button class="btn" id="addBtn">+ Добавить</button>
+      </div>
+    </header>
+
+    <div id="content">
+      <div id="userBadge" class="user-badge" style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:16px;"></div>
+      <div id="wishlist" class="wishlist"></div>
+    </div>
+  </div>
+
+  <!-- Wish modal -->
+  <div class="modal-overlay" id="wishModal">
+    <div class="modal">
+      <h2 id="wishModalTitle">Добавить желание</h2>
+      <form id="wishForm">
+        <input type="hidden" id="wishId">
+        <div class="form-group">
+          <label><span class="required">*</span> Изображение</label>
+          <div class="img-upload" id="imgUpload">
+            <input type="file" id="wishImage" accept="image/*" capture="environment">
+            <span id="imgUploadText">Нажми или перетащи фото</span>
+            <img id="imgPreview" class="img-preview" style="display:none;" alt="">
+          </div>
+          <div id="imgError" class="error-msg" style="display:none;"></div>
+        </div>
+        <div class="form-group">
+          <label><span class="required">*</span> Название <span id="nameCounter">0/100</span></label>
+          <input type="text" id="wishName" maxlength="100" placeholder="Название желания">
+          <div id="nameError" class="error-msg" style="display:none;"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Стоимость</label>
+            <input type="number" id="wishPrice" min="1" max="9999999" placeholder="0">
+            <div id="priceError" class="error-msg" style="display:none;"></div>
+          </div>
+          <div class="form-group">
+            <label>Валюта</label>
+            <select id="wishCurrency">
+              <option value="">—</option>
+              <option value="€">€ (евро)</option>
+              <option value="$">$ (доллар)</option>
+              <option value="Br">Br (бел. рубль)</option>
+              <option value="₽">₽ (рос. рубль)</option>
+              <option value="₸">₸ (тенге)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Размер</label>
+          <input type="text" id="wishSize" placeholder="M, 42, XL">
+          <div id="sizeError" class="error-msg" style="display:none;"></div>
+        </div>
+        <div class="form-group">
+          <label>Ссылка на продукт</label>
+          <input type="url" id="wishLink" placeholder="https://...">
+          <div id="linkError" class="error-msg" style="display:none;"></div>
+        </div>
+        <div class="form-group">
+          <label>Комментарий <span id="commentCounter">0/500</span></label>
+          <textarea id="wishComment" maxlength="500" placeholder="Дополнительные заметки"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Категория</label>
+          <select id="wishCategory">
+            <option value="">Без категории</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Вишлисты</label>
+          <div id="wishWishlistChecks"></div>
+          <small style="color:var(--text-secondary);font-size:0.8rem;">Можно выбрать несколько</small>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" id="wishCancel">Отмена</button>
+          <button type="submit" class="btn">Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Categories modal -->
+  <div class="modal-overlay" id="catsModal">
+    <div class="modal">
+      <h2>Править категории</h2>
+      <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:16px;">
+        Удаляй ненужные и добавляй свои. Без категорий приложение тоже работает.
+      </p>
+      <div class="cat-list" id="catList"></div>
+      <div class="cat-add">
+        <input type="text" id="newCatName" placeholder="Название категории">
+        <button type="button" class="btn" id="addCatBtn">Добавить</button>
+      </div>
+      <div class="form-actions" style="margin-top:20px;">
+        <button type="button" class="btn btn-secondary" id="catsClose">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Wishlists modal -->
+  <div class="modal-overlay" id="wlModal">
+    <div class="modal">
+      <h2>Править вишлисты</h2>
+      <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:16px;">
+        Вишлист — папка для карточек желаний. Добавляй, удаляй, переноси карточки.
+      </p>
+      <div class="cat-list" id="wlList"></div>
+      <div style="margin-top:16px;">
+        <div class="form-group">
+          <label><span class="required">*</span> Название</label>
+          <input type="text" id="newWlName" placeholder="Название вишлиста">
+        </div>
+        <div class="form-group">
+          <label>Картинка</label>
+          <div class="img-upload wl-add-img" id="wlImgUpload">
+            <input type="file" id="wlImage" accept="image/*">
+            <span id="wlImgText">Добавить обложку (необязательно)</span>
+            <img id="wlImgPreview" class="img-preview" style="display:none;max-height:120px;" alt="">
+          </div>
+        </div>
+        <button type="button" class="btn" id="addWlBtn">Добавить вишлист</button>
+      </div>
+      <div class="form-actions" style="margin-top:20px;">
+        <button type="button" class="btn btn-secondary" id="wlClose">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const tg = window.Telegram?.WebApp;
+    const WISHES_KEY = 'wishlist_wishes';
+    const CATS_KEY = 'wishlist_categories';
+    const WISHLISTS_KEY = 'wishlist_folders';
+    const DEFAULT_CATS = ['день рождения', 'новый год', 'без повода', 'разное'];
+    const PRIVACY_VALUES = ['private', 'public', 'shared'];
+    const NAME_RE = /^[a-zA-Zа-яА-ЯёЁ0-9\s\-_.,!?()]*$/;
+    const SIZE_RE = /^[a-zA-Z0-9\s\-.]*$/;
+    const URL_RE = /^(https?:\/\/)?([\w-]+\.)+[\w-]+(\/[\w\-./?%&=]*)?$/i;
+
+    if (tg) {
+      tg.ready();
+      tg.expand();
+      tg.enableClosingConfirmation();
+      document.body.style.background = tg.themeParams?.bg_color || 'var(--bg-primary)';
+      if (tg.themeParams?.text_color) document.body.style.color = tg.themeParams.text_color;
+      if (tg.themeParams?.secondary_bg_color) document.documentElement.style.setProperty('--bg-secondary', tg.themeParams.secondary_bg_color);
+      document.body.classList.toggle('light', tg.colorScheme === 'light');
+      tg.setHeaderColor(tg.themeParams?.bg_color || '#1a1a2e');
+    }
+
+    let wishes = loadWishes();
+    let categories = loadCategories();
+    let wishlists = loadWishlists();
+    let pendingImageBase64 = null;
+    let pendingWlImageBase64 = null;
+
+    function migrateWish(w) {
+      const ids = Array.isArray(w.wishlistIds) ? w.wishlistIds : (w.wishlistId ? [w.wishlistId] : []);
+      const { wishlistId, ...rest } = w;
+      return { ...rest, wishlistIds: ids };
+    }
+
+    function loadWishes() {
+      const hash = window.location.hash.slice(1);
+      if (hash) {
+        try {
+          const raw = decodeURIComponent(escape(atob(hash)));
+          const data = JSON.parse(raw);
+          const arr = Array.isArray(data?.wishes) ? data.wishes : (Array.isArray(data) ? data : []);
+          return arr.map(migrateWish);
+        } catch (_) {}
+      }
+      try {
+        const raw = JSON.parse(localStorage.getItem(WISHES_KEY) || '[]');
+        return raw.map(migrateWish);
+      } catch (_) { return []; }
+    }
+
+    function loadCategories() {
+      const raw = localStorage.getItem(CATS_KEY);
+      if (raw) {
+        try {
+          const arr = JSON.parse(raw);
+          return Array.isArray(arr) ? arr : [...DEFAULT_CATS];
+        } catch (_) {}
+      }
+      return [...DEFAULT_CATS];
+    }
+
+    function saveWishes() {
+      try { localStorage.setItem(WISHES_KEY, JSON.stringify(wishes)); } catch (e) {
+        tg?.showAlert?.('Не удалось сохранить. Возможно, много данных.');
+      }
+    }
+
+    function saveCategories() {
+      localStorage.setItem(CATS_KEY, JSON.stringify(categories));
+    }
+
+    function loadWishlists() {
+      try {
+        const raw = localStorage.getItem(WISHLISTS_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch (_) { return []; }
+    }
+
+    function saveWishlists() {
+      localStorage.setItem(WISHLISTS_KEY, JSON.stringify(wishlists));
+    }
+
+    function escapeHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s ?? '';
+      return d.innerHTML;
+    }
+
+    function resizeImageBase64(base64, maxW = 800, quality = 0.8) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const w = img.width, h = img.height;
+          if (w <= maxW) { resolve(base64); return; }
+          const canvas = document.createElement('canvas');
+          canvas.width = maxW;
+          canvas.height = (h / w) * maxW;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = () => resolve(base64);
+        img.src = base64;
+      });
+    }
+
+    function fileToBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function validateName(v) {
+      if (!v || !v.trim()) return 'Обязательное поле';
+      if (v.length > 100) return 'Макс. 100 символов';
+      if (!NAME_RE.test(v)) return 'Только латиница и кириллица';
+      return null;
+    }
+
+    function validateLink(v) {
+      if (!v?.trim()) return null;
+      if (!URL_RE.test(v.trim())) return 'Некорректная ссылка';
+      return null;
+    }
+
+    function validatePrice(v) {
+      if (!v) return null;
+      const n = parseInt(v, 10);
+      if (isNaN(n) || n < 1 || n > 9999999) return 'Число от 1 до 9999999';
+      return null;
+    }
+
+    function validateSize(v) {
+      if (!v?.trim()) return null;
+      if (!SIZE_RE.test(v.trim())) return 'Только латиница и цифры';
+      return null;
+    }
+
+    function validateComment(v) {
+      if (!v?.trim()) return null;
+      if (v.length > 500) return 'Макс. 500 символов';
+      return null;
+    }
+
+    function formatPrice(price, currency) {
+      if (!price) return '';
+      const n = parseInt(price, 10);
+      if (isNaN(n)) return price;
+      const fmt = new Intl.NumberFormat('ru-RU').format(n);
+      return currency ? `${fmt} ${currency}` : fmt;
+    }
+
+    function render() {
+      const list = document.getElementById('wishlist');
+      const userBadge = document.getElementById('userBadge');
+      if (tg?.initDataUnsafe?.user) {
+        userBadge.textContent = `Привет, ${tg.initDataUnsafe.user.first_name || 'пользователь'}!`;
+        userBadge.style.display = 'block';
+      } else userBadge.style.display = 'none';
+
+      if (wishes.length === 0 && wishlists.length === 0) {
+        list.innerHTML = `
+          <div class="empty-state">
+            <p>Нет желаний. Нажми «Добавить» — понадобятся фото и название.</p>
+            <button class="btn" id="emptyAdd">+ Добавить</button>
+          </div>`;
+        list.querySelector('#emptyAdd')?.addEventListener('click', openWishModal);
+        return;
+      }
+
+      const getIds = (w) => (Array.isArray(w.wishlistIds) ? w.wishlistIds : []);
+      const standalone = wishes.filter((w) => getIds(w).length === 0);
+      const sections = [];
+
+      wishlists.forEach((wl) => {
+        const wlWishes = wishes.filter((w) => getIds(w).includes(wl.id));
+        sections.push({ type: 'wishlist', wl, wishes: wlWishes });
+      });
+      if (standalone.length > 0) {
+        sections.push({ type: 'standalone', wishes: standalone });
+      }
+
+      list.innerHTML = sections.map((sec) => {
+        const byCat = {};
+        (sec.wishes || []).forEach((w) => {
+          const c = w.category || 'Без категории';
+          if (!byCat[c]) byCat[c] = [];
+          byCat[c].push(w);
+        });
+        const catOrder = [...categories, 'Без категории'].filter((c) => byCat[c]?.length);
+        Object.keys(byCat).forEach((c) => {
+          if (!catOrder.includes(c)) catOrder.push(c);
+        });
+
+        const header = sec.type === 'wishlist'
+          ? `<div class="wl-section-header">
+               ${sec.wl.image ? `<img class="wl-section-img" src="${escapeHtml(sec.wl.image)}" alt="">` : ''}
+               <span class="wl-section-title">${escapeHtml(sec.wl.name)}</span>
+             </div>`
+          : `<div class="wl-section-header">
+               <span class="wl-section-title">Отдельные желания</span>
+             </div>`;
+
+        const body = catOrder.map((catName) => {
+          const items = byCat[catName] || [];
+          return `
+            <div class="categories-section">
+              <div class="category-title"><span class="count">${items.length}</span> ${escapeHtml(catName)}</div>
+              <div class="wishlist">${items.map((w) => renderCard(w, sec)).join('')}</div>
+            </div>`;
+        }).join('');
+
+        return `<div class="wl-section" data-type="${sec.type}" data-wl-id="${sec.wl?.id || ''}">${header}<div class="wl-section-body">${body}</div></div>`;
+      }).join('');
+
+      list.querySelectorAll('.btn-edit').forEach((b) => b.addEventListener('click', () => openWishModal(b.dataset.id)));
+      list.querySelectorAll('.btn-del').forEach((b) => b.addEventListener('click', () => deleteWish(b.dataset.id)));
+      list.querySelectorAll('.btn-move').forEach((b) => b.addEventListener('click', (e) => toggleMoveMenu(e, b.dataset.id)));
+    }
+
+    document.addEventListener('click', () => closeMoveMenus());
+
+    function toggleMoveMenu(e, wishId) {
+      e.stopPropagation();
+      closeMoveMenus();
+      const btn = document.querySelector(`.btn-move[data-id="${wishId}"]`);
+      if (!btn) return;
+      const wrap = btn.closest('.card-move-wrap');
+      const w = wishes.find((x) => x.id === wishId);
+      const ids = Array.isArray(w?.wishlistIds) ? w.wishlistIds : [];
+      const menu = document.createElement('div');
+      menu.className = 'card-move-menu';
+      wishlists.forEach((wl) => {
+        const inList = ids.includes(wl.id);
+        const opt = document.createElement('button');
+        opt.textContent = inList ? `✓ Убрать из «${wl.name}»` : `Добавить в «${wl.name}»`;
+        opt.addEventListener('click', (e2) => { e2.stopPropagation(); toggleWishWishlist(wishId, wl.id); closeMoveMenus(); });
+        menu.appendChild(opt);
+      });
+      if (menu.children.length === 0) return;
+      wrap.appendChild(menu);
+    }
+
+    function closeMoveMenus() {
+      document.querySelectorAll('.card-move-menu').forEach((m) => m.remove());
+    }
+
+    function toggleWishWishlist(wishId, wlId) {
+      const w = wishes.find((x) => x.id === wishId);
+      if (!w) return;
+      const ids = Array.isArray(w.wishlistIds) ? [...w.wishlistIds] : [];
+      const idx = ids.indexOf(wlId);
+      if (idx >= 0) ids.splice(idx, 1);
+      else ids.push(wlId);
+      w.wishlistIds = ids;
+      saveWishes();
+      render();
+      tg?.HapticFeedback?.notificationOccurred?.('success');
+    }
+
+    function renderCard(w, section) {
+      const priceStr = formatPrice(w.price, w.currency);
+      const canMove = wishlists.length > 0;
+      const moveBtn = canMove
+        ? `<div class="card-move-wrap">
+             <button class="btn btn-secondary btn-sm btn-move card-move-btn" data-id="${w.id}">В вишлист</button>
+           </div>`
+        : '';
+      return `
+        <div class="card" data-id="${w.id}">
+          <img class="card-img" src="${escapeHtml(w.image || '')}" alt="" onerror="this.style.display='none'">
+          <div class="card-title">${escapeHtml(w.name)}</div>
+          ${priceStr ? `<div class="card-price">${escapeHtml(priceStr)}</div>` : ''}
+          ${w.size ? `<div class="card-meta">Размер: ${escapeHtml(w.size)}</div>` : ''}
+          ${w.link ? `<a class="card-link" href="${escapeHtml(w.link)}" target="_blank" rel="noopener">${escapeHtml(w.link)}</a>` : ''}
+          ${w.comment ? `<div class="card-comment">${escapeHtml(w.comment)}</div>` : ''}
+          <div class="card-actions">
+            ${moveBtn}
+            <button class="btn btn-secondary btn-sm btn-edit" data-id="${w.id}">Редактировать</button>
+            <button class="btn btn-secondary btn-sm btn-del" data-id="${w.id}">Удалить</button>
+          </div>
+        </div>`;
+    }
+
+    function openWishModal(editId = null) {
+      tg?.HapticFeedback?.impactOccurred?.('light');
+      pendingImageBase64 = null;
+      const form = document.getElementById('wishForm');
+      form.reset();
+      document.getElementById('wishId').value = '';
+      document.getElementById('imgPreview').style.display = 'none';
+      document.getElementById('imgUploadText').textContent = 'Нажми или перетащи фото';
+      ['imgError','nameError','linkError','priceError','sizeError'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) { el.style.display = 'none'; el.textContent = ''; }
+      });
+      document.getElementById('wishModalTitle').textContent = editId ? 'Редактировать желание' : 'Добавить желание';
+
+      const sel = document.getElementById('wishCategory');
+      sel.innerHTML = '<option value="">Без категории</option>' +
+        categories.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+
+      const wlChecks = document.getElementById('wishWishlistChecks');
+      wlChecks.innerHTML = wishlists.length === 0
+        ? '<span style="color:var(--text-secondary);font-size:0.9rem;">Нет вишлистов</span>'
+        : wishlists.map((wl) => `<label style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer;">
+          <input type="checkbox" name="wishWishlist" value="${escapeHtml(wl.id)}">
+          <span>${escapeHtml(wl.name)}</span>
+        </label>`).join('');
+
+      if (editId) {
+        const w = wishes.find((x) => x.id === editId);
+        if (w) {
+          document.getElementById('wishId').value = w.id;
+          document.getElementById('wishName').value = w.name || '';
+          document.getElementById('wishPrice').value = w.price || '';
+          document.getElementById('wishCurrency').value = w.currency || '';
+          document.getElementById('wishSize').value = w.size || '';
+          document.getElementById('wishLink').value = w.link || '';
+          document.getElementById('wishComment').value = w.comment || '';
+          document.getElementById('wishCategory').value = w.category || '';
+          const ids = Array.isArray(w.wishlistIds) ? w.wishlistIds : [];
+          wlChecks.querySelectorAll('input[name="wishWishlist"]').forEach((cb) => {
+            cb.checked = ids.includes(cb.value);
+          });
+          if (w.image) {
+            pendingImageBase64 = w.image;
+            document.getElementById('imgPreview').src = w.image;
+            document.getElementById('imgPreview').style.display = 'block';
+            document.getElementById('imgUploadText').textContent = 'Изменить фото';
+          }
+        }
+      }
+      updateCounters();
+      document.getElementById('wishModal').classList.add('open');
+    }
+
+    function closeWishModal() {
+      document.getElementById('wishModal').classList.remove('open');
+    }
+
+    function updateCounters() {
+      document.getElementById('nameCounter').textContent = `${(document.getElementById('wishName').value || '').length}/100`;
+      document.getElementById('commentCounter').textContent = `${(document.getElementById('wishComment').value || '').length}/500`;
+    }
+
+    document.getElementById('wishName').addEventListener('input', updateCounters);
+    document.getElementById('wishComment').addEventListener('input', updateCounters);
+
+    document.getElementById('imgUpload').addEventListener('click', () => document.getElementById('wishImage').click());
+    document.getElementById('imgUpload').addEventListener('dragover', (e) => { e.preventDefault(); document.getElementById('imgUpload').classList.add('dragover'); });
+    document.getElementById('imgUpload').addEventListener('dragleave', () => document.getElementById('imgUpload').classList.remove('dragover'));
+    document.getElementById('imgUpload').addEventListener('drop', (e) => {
+      e.preventDefault();
+      document.getElementById('imgUpload').classList.remove('dragover');
+      const f = e.dataTransfer?.files?.[0];
+      if (f && f.type.startsWith('image/')) handleImageFile(f);
+    });
+    document.getElementById('wishImage').addEventListener('change', (e) => {
+      const f = e.target.files?.[0];
+      if (f) handleImageFile(f);
+    });
+
+    async function handleImageFile(file) {
+      document.getElementById('imgError').style.display = 'none';
+      try {
+        let b64 = await fileToBase64(file);
+        b64 = await resizeImageBase64(b64);
+        pendingImageBase64 = b64;
+        document.getElementById('imgPreview').src = b64;
+        document.getElementById('imgPreview').style.display = 'block';
+        document.getElementById('imgUploadText').textContent = 'Изменить фото';
+      } catch (e) {
+        document.getElementById('imgError').textContent = 'Не удалось загрузить изображение';
+        document.getElementById('imgError').style.display = 'block';
+      }
+    }
+
+    document.getElementById('wishForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const id = document.getElementById('wishId').value;
+      const isNew = !id;
+      const name = document.getElementById('wishName').value.trim();
+      const price = document.getElementById('wishPrice').value;
+      const currency = document.getElementById('wishCurrency').value;
+      const size = document.getElementById('wishSize').value.trim();
+      const link = document.getElementById('wishLink').value.trim();
+      const comment = document.getElementById('wishComment').value.trim();
+      const category = document.getElementById('wishCategory').value || undefined;
+      const wishlistIds = [...document.querySelectorAll('input[name="wishWishlist"]:checked')].map((cb) => cb.value);
+
+      ['imgError','nameError','linkError','priceError','sizeError'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) { el.style.display = 'none'; el.textContent = ''; }
+      });
+
+      if (isNew && !pendingImageBase64) {
+        document.getElementById('imgError').textContent = 'Добавьте изображение';
+        document.getElementById('imgError').style.display = 'block';
+        return;
+      }
+      const nameErr = validateName(name);
+      if (nameErr) {
+        document.getElementById('nameError').textContent = nameErr;
+        document.getElementById('nameError').style.display = 'block';
+        return;
+      }
+      const linkErr = validateLink(link);
+      if (linkErr) {
+        document.getElementById('linkError').textContent = linkErr;
+        document.getElementById('linkError').style.display = 'block';
+        return;
+      }
+      const priceErr = validatePrice(price);
+      if (priceErr && price) {
+        document.getElementById('priceError').textContent = priceErr;
+        document.getElementById('priceError').style.display = 'block';
+        return;
+      }
+      const sizeErr = validateSize(size);
+      if (sizeErr) {
+        document.getElementById('sizeError').textContent = sizeErr;
+        document.getElementById('sizeError').style.display = 'block';
+        return;
+      }
+
+      const payload = {
+        id: id || 'w_' + Date.now(),
+        name,
+        image: pendingImageBase64 || (wishes.find((x) => x.id === id)?.image),
+        price: price ? String(parseInt(price, 10)) : undefined,
+        currency: currency || undefined,
+        size: size || undefined,
+        link: link || undefined,
+        comment: comment || undefined,
+        category,
+        wishlistIds,
+      };
+
+      const idx = wishes.findIndex((x) => x.id === payload.id);
+      if (idx >= 0) wishes[idx] = { ...wishes[idx], ...payload };
+      else wishes.push(payload);
+
+      saveWishes();
+      render();
+      closeWishModal();
+      tg?.HapticFeedback?.notificationOccurred?.('success');
+    });
+
+    function deleteWish(id) {
+      tg?.HapticFeedback?.impactOccurred?.('medium');
+      wishes = wishes.filter((x) => x.id !== id);
+      saveWishes();
+      render();
+    }
+
+    document.getElementById('addBtn').addEventListener('click', openWishModal);
+    document.getElementById('wishCancel').addEventListener('click', closeWishModal);
+    document.getElementById('wishModal').addEventListener('click', (e) => {
+      if (e.target.id === 'wishModal') closeWishModal();
+    });
+
+    function openCatsModal() {
+      tg?.HapticFeedback?.impactOccurred?.('light');
+      const list = document.getElementById('catList');
+      list.innerHTML = categories.length === 0
+        ? '<div class="empty-cats">Категорий нет. Добавь свою.</div>'
+        : categories.map((c) => `
+            <div class="cat-item" data-cat="${escapeHtml(c)}">
+              <span>${escapeHtml(c)}</span>
+              <span class="cat-item-remove" data-cat="${escapeHtml(c)}">✕</span>
+            </div>`).join('');
+      list.querySelectorAll('.cat-item-remove').forEach((el) => {
+        el.addEventListener('click', () => {
+          categories = categories.filter((x) => x !== el.dataset.cat);
+          saveCategories();
+          openCatsModal();
+        });
+      });
+      document.getElementById('newCatName').value = '';
+      document.getElementById('catsModal').classList.add('open');
+    }
+
+    document.getElementById('editCatsBtn').addEventListener('click', openCatsModal);
+    document.getElementById('catsClose').addEventListener('click', () => document.getElementById('catsModal').classList.remove('open'));
+    document.getElementById('catsModal').addEventListener('click', (e) => {
+      if (e.target.id === 'catsModal') e.target.classList.remove('open');
+    });
+
+    document.getElementById('addCatBtn').addEventListener('click', () => {
+      const v = document.getElementById('newCatName').value.trim();
+      if (!v) return;
+      const re = /^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]+$/;
+      if (!re.test(v)) return;
+      if (categories.includes(v)) return;
+      categories.push(v);
+      saveCategories();
+      document.getElementById('newCatName').value = '';
+      openCatsModal();
+    });
+
+    document.getElementById('newCatName').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('addCatBtn').click();
+    });
+
+    function openWlModal() {
+      tg?.HapticFeedback?.impactOccurred?.('light');
+      pendingWlImageBase64 = null;
+      document.getElementById('wlImgPreview').style.display = 'none';
+      document.getElementById('wlImgText').textContent = 'Добавить обложку (необязательно)';
+      const list = document.getElementById('wlList');
+      list.innerHTML = wishlists.length === 0
+        ? '<div class="empty-cats">Вишлистов нет. Добавь первый.</div>'
+        : wishlists.map((wl) => `
+            <div class="wl-item" data-wl-id="${escapeHtml(wl.id)}">
+              ${wl.image ? `<img class="wl-item-img" src="${escapeHtml(wl.image)}" alt="">` : '<div class="wl-item-img" style="background:var(--border);flex-shrink:0;"></div>'}
+              <div class="wl-item-body">${escapeHtml(wl.name)}</div>
+              <span class="wl-item-remove" data-wl-id="${escapeHtml(wl.id)}">✕</span>
+            </div>`).join('');
+      list.querySelectorAll('.wl-item-remove').forEach((el) => {
+        el.addEventListener('click', () => {
+          const wlId = el.dataset.wlId;
+          wishes.forEach((w) => {
+            const ids = Array.isArray(w.wishlistIds) ? w.wishlistIds : [];
+            w.wishlistIds = ids.filter((id) => id !== wlId);
+          });
+          wishlists = wishlists.filter((x) => x.id !== wlId);
+          saveWishlists();
+          saveWishes();
+          openWlModal();
+        });
+      });
+      document.getElementById('newWlName').value = '';
+      document.getElementById('wlModal').classList.add('open');
+    }
+
+    document.getElementById('editWlBtn').addEventListener('click', openWlModal);
+    document.getElementById('wlClose').addEventListener('click', () => document.getElementById('wlModal').classList.remove('open'));
+    document.getElementById('wlModal').addEventListener('click', (e) => {
+      if (e.target.id === 'wlModal') e.target.classList.remove('open');
+    });
+
+    document.getElementById('wlImgUpload').addEventListener('click', () => document.getElementById('wlImage').click());
+    document.getElementById('wlImage').addEventListener('change', async (e) => {
+      const f = e.target.files?.[0];
+      if (!f || !f.type.startsWith('image/')) return;
+      try {
+        let b64 = await fileToBase64(f);
+        b64 = await resizeImageBase64(b64, 400);
+        pendingWlImageBase64 = b64;
+        document.getElementById('wlImgPreview').src = b64;
+        document.getElementById('wlImgPreview').style.display = 'block';
+        document.getElementById('wlImgText').textContent = 'Изменить обложку';
+      } catch (_) {}
+    });
+
+    document.getElementById('addWlBtn').addEventListener('click', async () => {
+      const name = document.getElementById('newWlName').value.trim();
+      if (!name) return;
+      const wl = {
+        id: 'wl_' + Date.now(),
+        name,
+        image: pendingWlImageBase64 || undefined,
+        privacy: 'private',
+      };
+      wishlists.push(wl);
+      saveWishlists();
+      pendingWlImageBase64 = null;
+      document.getElementById('newWlName').value = '';
+      document.getElementById('wlImgPreview').style.display = 'none';
+      document.getElementById('wlImgText').textContent = 'Добавить обложку (необязательно)';
+      document.getElementById('wlImage').value = '';
+      openWlModal();
+      tg?.HapticFeedback?.notificationOccurred?.('success');
+    });
+
+    render();
+  </script>
+</body>
+</html>

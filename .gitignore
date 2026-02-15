@@ -1,0 +1,6 @@
+# Не загружать в репозиторий
+.cursor/
+node_modules/
+.env
+*.log
+.DS_Store
