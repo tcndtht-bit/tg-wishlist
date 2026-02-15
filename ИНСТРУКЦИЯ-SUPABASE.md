@@ -158,7 +158,23 @@ CREATE TABLE IF NOT EXISTS reservations (
 
 ---
 
-### Шаг 2.8. Создать таблицу категорий (если храним на сервере)
+### Шаг 2.8. Создать таблицу подписок на публичные вишлисты
+
+```sql
+-- Подписки: пользователь открыл публичный вишлист по ссылке — он появляется в его списке
+CREATE TABLE IF NOT EXISTS followed_public_wishlists (
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  wishlist_id TEXT NOT NULL REFERENCES wishlists(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (user_id, wishlist_id)
+);
+```
+
+Скопируй, вставь и нажми **Run**.
+
+---
+
+### Шаг 2.9. Создать таблицу категорий (если храним на сервере)
 
 ```sql
 -- Категории пользователя (теги)
@@ -173,10 +189,10 @@ CREATE TABLE IF NOT EXISTS categories (
 
 ---
 
-### Шаг 2.9. Проверить, что таблицы созданы
+### Шаг 2.10. Проверить, что таблицы созданы
 
 1. В левом меню нажми **Table Editor**
-2. Должны быть видны таблицы: `users`, `wishlists`, `wishlist_collaborators`, `wishes`, `wishlist_items`, `reservations`, `categories`
+2. Должны быть видны таблицы: `users`, `wishlists`, `wishlist_collaborators`, `followed_public_wishlists`, `wishes`, `wishlist_items`, `reservations`, `categories`
 
 Если все есть — база данных готова.
 
@@ -193,6 +209,7 @@ CREATE TABLE IF NOT EXISTS categories (
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE wishlists ENABLE ROW LEVEL SECURITY;
 ALTER TABLE wishlist_collaborators ENABLE ROW LEVEL SECURITY;
+ALTER TABLE followed_public_wishlists ENABLE ROW LEVEL SECURITY;
 ALTER TABLE wishes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE wishlist_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reservations ENABLE ROW LEVEL SECURITY;
@@ -202,6 +219,7 @@ ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "allow_all" ON users FOR ALL USING (true);
 CREATE POLICY "allow_all" ON wishlists FOR ALL USING (true);
 CREATE POLICY "allow_all" ON wishlist_collaborators FOR ALL USING (true);
+CREATE POLICY "allow_all" ON followed_public_wishlists FOR ALL USING (true);
 CREATE POLICY "allow_all" ON wishes FOR ALL USING (true);
 CREATE POLICY "allow_all" ON wishlist_items FOR ALL USING (true);
 CREATE POLICY "allow_all" ON reservations FOR ALL USING (true);

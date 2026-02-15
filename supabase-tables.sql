@@ -60,7 +60,15 @@ CREATE TABLE IF NOT EXISTS reservations (
   PRIMARY KEY (wish_id)
 );
 
--- 7. Категории пользователя
+-- 7. Подписки на публичные вишлисты (когда пользователь открыл по ссылке)
+CREATE TABLE IF NOT EXISTS followed_public_wishlists (
+  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  wishlist_id TEXT NOT NULL REFERENCES wishlists(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  PRIMARY KEY (user_id, wishlist_id)
+);
+
+-- 8. Категории пользователя
 CREATE TABLE IF NOT EXISTS categories (
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,

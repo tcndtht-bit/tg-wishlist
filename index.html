@@ -491,6 +491,7 @@
             <img id="wlImgPreviewEdit" class="img-preview" style="display:none;max-height:120px;" alt="">
           </div>
         </div>
+        <div id="wlEditFormExtras"></div>
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" id="editWlCancel">Отмена</button>
           <button type="button" class="btn" id="editWlSave">Сохранить</button>
@@ -696,6 +697,14 @@
       allCollab?.forEach((c) => {
         if (byId[c.wishlist_id] && !byId[c.wishlist_id].coAuthorIds.includes(c.user_id)) byId[c.wishlist_id].coAuthorIds.push(c.user_id);
       });
+      try {
+        const { data: followedRows } = await sb.from('followed_public_wishlists').select('wishlist_id').eq('user_id', currentUserId);
+        const followedIds = (followedRows || []).map((r) => r.wishlist_id).filter((id) => !byId[id]);
+        if (followedIds.length > 0) {
+          const { data: followedWls } = await sb.from('wishlists').select('*').in('id', followedIds).eq('privacy', 'public');
+          (followedWls || []).forEach((w) => { byId[w.id] = { ...w, ownerId: w.owner_id, isFollowedPublic: true }; });
+        }
+      } catch (_) {}
       return { data: Object.values(byId).map(migrateWishlist), error: null };
     }
 
@@ -718,6 +727,23 @@
       const reservedCards = {};
       (resRows || []).forEach((r) => { reservedCards[r.wish_id] = { userId: r.user_id, userName: r.user_name || 'Кто-то' }; });
       return { type: 'public', wishlist: wl, wishes, reservedCards, ownerName };
+    }
+
+    async function addFollowedPublicWishlist(wlId) {
+      if (!useSupabase || !sb || !currentUserId) return;
+      try {
+        const { data: wl } = await sb.from('wishlists').select('owner_id, privacy').eq('id', wlId).single();
+        if (!wl || wl.privacy !== 'public' || wl.owner_id === currentUserId) return;
+        await sb.from('followed_public_wishlists').upsert({ user_id: currentUserId, wishlist_id: wlId }, { onConflict: 'user_id,wishlist_id' });
+      } catch (_) {}
+    }
+
+    async function removeFollowedPublicWishlist(wlId) {
+      if (!useSupabase || !sb) return;
+      await sb.from('followed_public_wishlists').delete().eq('user_id', currentUserId).eq('wishlist_id', wlId);
+      const { data: items } = await sb.from('wishlist_items').select('wish_id').eq('wishlist_id', wlId);
+      const wishIds = (items || []).map((i) => i.wish_id);
+      if (wishIds.length) await sb.from('reservations').delete().eq('user_id', currentUserId).in('wish_id', wishIds);
     }
 
     async function fetchInviteWishlistFromSupabase(wlId) {
@@ -792,6 +818,8 @@
         if (shortW && useSupabase && sb) {
           publicViewData = await fetchPublicWishlistFromSupabase(shortW[1]);
           if (publicViewData) {
+            await ensureUser();
+            await addFollowedPublicWishlist(shortW[1]);
             wishes = []; categories = [...DEFAULT_CATS]; wishlists = [];
             history.replaceState(null, '', window.location.pathname + '#w/' + shortW[1]);
             return;
@@ -818,6 +846,7 @@
         const data = unpackPayload(hash);
         if (data?.type === 'public' && data?.wishlist?.id) {
           publicViewData = data;
+          if (useSupabase && sb) { await ensureUser(); await addFollowedPublicWishlist(data.wishlist.id); }
           wishes = []; categories = [...DEFAULT_CATS]; wishlists = [];
           return;
         }
@@ -1140,6 +1169,12 @@
             const pr = wl.privacy === 'private' ? 'Приватный' : (wl.privacy === 'public' ? 'Публичный' : 'Совместный');
             const shareBtn = wl.privacy === 'public' && isOwner(wl) ? `<button class="btn btn-sm btn-secondary" data-wl-share="${escapeHtml(wl.id)}">Поделиться</button>` : '';
             const inviteBtn = wl.privacy === 'shared' && isOwner(wl) ? `<button class="btn btn-sm btn-secondary" data-wl-invite="${escapeHtml(wl.id)}">Пригласить</button>` : '';
+            const isCollab = wl.privacy === 'shared' && canEditWishlist(wl) && !isOwner(wl);
+            const isFollowed = !!wl.isFollowedPublic;
+            const removeOrLeave = (isCollab || isFollowed)
+              ? `<span class="wl-item-leave" data-wl-id="${escapeHtml(wl.id)}" data-followed="${isFollowed}" style="color:var(--accent);cursor:pointer;padding:4px;font-size:0.85rem;">Покинуть</span>`
+              : (isOwner(wl) ? `<span class="wl-item-remove" data-wl-id="${escapeHtml(wl.id)}">✕</span>` : '');
+            const editBtn = isFollowed ? '' : `<span class="wl-item-edit" data-wl-id="${escapeHtml(wl.id)}" title="Редактировать">✎</span>`;
             return `
               <div class="wl-item" data-wl-id="${escapeHtml(wl.id)}">
                 ${wl.image ? `<img class="wl-item-img" src="${escapeHtml(wl.image)}" alt="">` : '<div class="wl-item-img" style="background:var(--border);flex-shrink:0;"></div>'}
@@ -1148,12 +1183,22 @@
                   <span class="privacy-badge" style="font-size:0.7rem;margin-top:4px;display:inline-block;">${escapeHtml(pr)}</span>
                   <div style="margin-top:8px;">${shareBtn}${inviteBtn}</div>
                 </div>
-                <span class="wl-item-edit" data-wl-id="${escapeHtml(wl.id)}" title="Редактировать">✎</span>
-                <span class="wl-item-remove" data-wl-id="${escapeHtml(wl.id)}">✕</span>
+                ${editBtn}
+                ${removeOrLeave}
               </div>`;
           }).join('');
       list.querySelectorAll('.wl-item-edit').forEach((el) => el.addEventListener('click', () => openEditWlFormInManage(el.dataset.wlId)));
       list.querySelectorAll('.wl-item-remove').forEach((el) => el.addEventListener('click', () => removeWlInManage(el.dataset.wlId)));
+      list.querySelectorAll('.wl-item-leave').forEach((el) => el.addEventListener('click', async () => {
+        const wlId = el.dataset.wlId;
+        if (el.dataset.followed === 'true') {
+          await leaveFollowedPublicWishlist(wlId);
+          if (useSupabase && sb) { const r = await loadWishlistsFromSupabase(); if (r.data) wishlists = r.data; } else wishlists = wishlists.filter((x) => x.id !== wlId);
+        } else {
+          await leaveWishlist(wlId);
+        }
+        refreshWlManageList(); bindWlManageHandlers(); render();
+      }));
       list.querySelectorAll('[data-wl-share]').forEach((b) => b.addEventListener('click', () => openShareModal(b.dataset.wlShare)));
       list.querySelectorAll('[data-wl-invite]').forEach((b) => b.addEventListener('click', () => openInviteModal(b.dataset.wlInvite)));
     }
@@ -1193,6 +1238,17 @@
       render();
     }
 
+    async function removeCollaborator(wlId, userId) {
+      const wl = wishlists.find((x) => x.id === wlId);
+      if (!wl || !isOwner(wl)) return;
+      if (useSupabase && sb) {
+        await sb.from('wishlist_collaborators').delete().eq('wishlist_id', wlId).eq('user_id', userId);
+      }
+      if (wl.coAuthorIds) wl.coAuthorIds = wl.coAuthorIds.filter((id) => id !== userId);
+      await saveWishlists();
+      tg?.HapticFeedback?.notificationOccurred?.('success');
+    }
+
     async function removeWlInManage(wlId) {
       wishes.forEach((w) => { const ids = Array.isArray(w.wishlistIds) ? w.wishlistIds : []; w.wishlistIds = ids.filter((id) => id !== wlId); });
       wishlists = wishlists.filter((x) => x.id !== wlId);
@@ -1200,6 +1256,28 @@
       await saveWishes();
       refreshWlManageList();
       render();
+    }
+
+    async function leaveWishlist(wlId) {
+      if (useSupabase && sb) {
+        await sb.from('wishlist_collaborators').delete().eq('wishlist_id', wlId).eq('user_id', currentUserId);
+        const res = await loadWishlistsFromSupabase();
+        wishlists = res.data || wishlists.filter((x) => x.id !== wlId);
+      } else {
+        const wl = wishlists.find((x) => x.id === wlId);
+        if (wl?.coAuthorIds) wl.coAuthorIds = wl.coAuthorIds.filter((id) => id !== currentUserId);
+        wishlists = wishlists.filter((x) => x.id !== wlId);
+        await saveWishlists();
+      }
+      wishes.forEach((w) => { const ids = Array.isArray(w.wishlistIds) ? w.wishlistIds : []; w.wishlistIds = ids.filter((id) => id !== wlId); });
+      await saveWishes();
+      editingWlId = null;
+      document.getElementById('wlAddForm').style.display = 'block';
+      document.getElementById('wlEditForm').style.display = 'none';
+      document.getElementById('wlEditForm').innerHTML = '';
+      refreshWlManageList();
+      render();
+      tg?.HapticFeedback?.notificationOccurred?.('success');
     }
 
     function openEditWlFormInManage(wlId) {
@@ -1231,11 +1309,45 @@
             <img id="wlImgPreviewEdit" class="img-preview" style="display:${wl.image ? 'block' : 'none'};max-height:120px;" src="${wl.image || ''}" alt="">
           </div>
         </div>
+        <div id="wlEditFormExtrasManage"></div>
         <div class="form-actions" style="margin-top:16px;">
           <button type="button" class="btn btn-secondary" id="editWlCancel">Отмена</button>
           <button type="button" class="btn" id="editWlSave">Сохранить</button>
         </div>
       `;
+      const extras = document.getElementById('wlEditFormExtrasManage');
+      const isCollab = wl.privacy === 'shared' && canEditWishlist(wl) && !isOwner(wl);
+      if (isCollab) {
+        extras.innerHTML = '<button type="button" class="btn btn-secondary" id="editWlLeaveManage" style="margin-top:12px;">Покинуть вишлист</button>';
+        document.getElementById('editWlLeaveManage').addEventListener('click', async () => { await leaveWishlist(wlId); });
+      } else if (wl.privacy === 'shared' && isOwner(wl)) {
+        const coAuths = (wl.coAuthorIds || []).filter((id) => id !== (wl.ownerId || wl.owner_id));
+        if (coAuths.length > 0) {
+          Promise.all(coAuths.map(async (uid) => {
+            if (useSupabase && sb) {
+              const { data } = await sb.from('users').select('first_name, username').eq('id', uid).single();
+              return data ? (data.username ? '@' + data.username : data.first_name || uid) : uid;
+            }
+            return uid;
+          })).then((names) => {
+            extras.innerHTML = `
+              <div class="form-group" style="margin-top:12px;">
+                <label>Удалить соавтора</label>
+                <select id="editWlRemoveCollabManage" style="width:100%;padding:8px 12px;margin-top:4px;border-radius:8px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);">
+                  <option value="">— Выберите —</option>
+                  ${coAuths.map((id, i) => `<option value="${escapeHtml(id)}">${escapeHtml(names[i] || id)}</option>`).join('')}
+                </select>
+                <button type="button" class="btn btn-secondary btn-sm" id="editWlRemoveCollabBtnManage" style="margin-top:8px;">Удалить</button>
+              </div>`;
+            document.getElementById('editWlRemoveCollabBtnManage').addEventListener('click', async () => {
+              const uid = document.getElementById('editWlRemoveCollabManage').value;
+              if (!uid) return;
+              await removeCollaborator(wlId, uid);
+              openEditWlFormInManage(wlId);
+            });
+          });
+        }
+      }
       document.getElementById('editWlName').focus();
       document.getElementById('editWlCancel').addEventListener('click', () => { editingWlId = null; document.getElementById('wlAddForm').style.display = 'block'; document.getElementById('wlEditForm').style.display = 'none'; document.getElementById('wlEditForm').innerHTML = ''; renderManageWishlists(); });
       document.getElementById('editWlSave').addEventListener('click', saveEditWlInManage);
@@ -1334,9 +1446,13 @@
       list.querySelectorAll('.btn-move').forEach((b) => b.addEventListener('click', (e) => toggleMoveMenu(e, b.dataset.id)));
     }
 
-    function renderWishlistDetail(wlId) {
+    async function renderWishlistDetail(wlId) {
       const wl = wishlists.find((x) => x.id === wlId);
       if (!wl) { navigateTo('main'); return; }
+      if (wl.isFollowedPublic) {
+        await renderFollowedPublicDetail(wlId);
+        return;
+      }
       const content = document.getElementById('content');
       const getIds = (w) => (Array.isArray(w.wishlistIds) ? w.wishlistIds : []);
       const wlWishes = wishes.filter((w) => getIds(w).includes(wlId));
@@ -1383,6 +1499,66 @@
       cardsEl.querySelectorAll('.btn-move').forEach((b) => b.addEventListener('click', (e) => toggleMoveMenu(e, b.dataset.id)));
     }
 
+    async function renderFollowedPublicDetail(wlId) {
+      const wl = wishlists.find((x) => x.id === wlId);
+      if (!wl?.isFollowedPublic) return;
+      const getIds = (w) => (Array.isArray(w.wishlistIds) ? w.wishlistIds : []);
+      const wlWishes = wishes.filter((w) => getIds(w).includes(wlId));
+      let reservedCards = {};
+      if (useSupabase && sb && wlWishes.length) {
+        const wishIds = wlWishes.map((w) => w.id);
+        const { data: resRows } = await sb.from('reservations').select('wish_id, user_id, user_name').in('wish_id', wishIds);
+        (resRows || []).forEach((r) => { reservedCards[r.wish_id] = { userId: r.user_id, userName: r.user_name || 'Кто-то' }; });
+      }
+      const byCat = {};
+      wlWishes.forEach((w) => { const c = w.category || 'Без категории'; if (!byCat[c]) byCat[c] = []; byCat[c].push(w); });
+      const catOrder = Object.keys(byCat);
+      const content = document.getElementById('content');
+      const d = { wishlist: wl, wishes: wlWishes, reservedCards, ownerName: '' };
+      content.innerHTML = `
+        <button class="btn back-btn" data-nav-back>← Назад</button>
+        <div class="wl-section">
+          <div class="wl-section-header">
+            ${wl.image ? `<img class="wl-section-img" src="${escapeHtml(wl.image)}" alt="">` : ''}
+            <span class="wl-section-title">${escapeHtml(wl.name || 'Вишлист')}</span>
+          </div>
+          <div class="wl-section-body view-readonly">
+            ${catOrder.map((catName) => {
+              const catItems = byCat[catName] || [];
+              return `
+                <div class="categories-section">
+                  <div class="category-title"><span class="count">${catItems.length}</span> ${escapeHtml(catName)}</div>
+                  <div class="wishlist">${catItems.map((w) => renderCard(w, null, { reserved: reservedCards, items: d })).join('')}</div>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+      content.querySelector('[data-nav-back]').addEventListener('click', () => navigateTo('main'));
+      content.querySelectorAll('.btn-reserve').forEach((b) => b.addEventListener('click', () => reserveCardInFollowed(wlId, b.dataset.cardId)));
+      content.querySelectorAll('.btn-unreserve').forEach((b) => b.addEventListener('click', () => unreserveCardInFollowed(wlId, b.dataset.cardId)));
+    }
+
+    async function reserveCardInFollowed(wlId, cardId) {
+      if (!useSupabase || !sb) return;
+      const u = tg?.initDataUnsafe?.user;
+      const userId = u?.id ? 'tg_' + u.id : 'anon_' + Date.now();
+      const userName = u?.first_name || 'Кто-то';
+      await sb.from('reservations').upsert({ wish_id: cardId, user_id: userId, user_name: userName }, { onConflict: 'wish_id' });
+      tg?.HapticFeedback?.notificationOccurred?.('success');
+      renderWishlistDetail(wlId);
+    }
+
+    async function unreserveCardInFollowed(wlId, cardId) {
+      if (!useSupabase || !sb) return;
+      const u = tg?.initDataUnsafe?.user;
+      const userId = u?.id ? 'tg_' + u.id : null;
+      const { data: r } = await sb.from('reservations').select('user_id').eq('wish_id', cardId).single();
+      if (!r || (userId && r.user_id !== userId)) return;
+      await sb.from('reservations').delete().eq('wish_id', cardId);
+      tg?.HapticFeedback?.notificationOccurred?.('success');
+      renderWishlistDetail(wlId);
+    }
+
     function renderPublicView() {
       const d = publicViewData;
       const content = document.getElementById('content');
@@ -1414,11 +1590,9 @@
             }).join('')}
           </div>
         </div>`;
-      content.querySelector('#publicViewHomeBtn')?.addEventListener('click', async () => {
-        publicViewData = null;
+      content.querySelector('#publicViewHomeBtn')?.addEventListener('click', () => {
         history.replaceState(null, '', window.location.pathname);
-        await loadAll();
-        render();
+        window.location.reload();
       });
       content.querySelectorAll('.btn-reserve').forEach((b) => b.addEventListener('click', () => reserveCard(b.dataset.cardId)));
       content.querySelectorAll('.btn-unreserve').forEach((b) => b.addEventListener('click', () => unreserveCard(b.dataset.cardId)));
@@ -1804,6 +1978,12 @@
         ? '<div class="empty-cats">Вишлистов нет. Добавь первый.</div>'
         : wishlists.map((wl) => {
             const pr = wl.privacy === 'private' ? 'Приватный' : (wl.privacy === 'public' ? 'Публичный' : 'Совместный');
+            const isCollab = wl.privacy === 'shared' && canEditWishlist(wl) && !isOwner(wl);
+            const isFollowed = !!wl.isFollowedPublic;
+            const removeOrLeave = (isCollab || isFollowed)
+              ? `<span class="wl-item-leave" data-wl-id="${escapeHtml(wl.id)}" data-followed="${isFollowed}" style="color:var(--accent);cursor:pointer;padding:4px;font-size:0.85rem;">Покинуть</span>`
+              : (isOwner(wl) ? `<span class="wl-item-remove" data-wl-id="${escapeHtml(wl.id)}">✕</span>` : '');
+            const editBtn = isFollowed ? '' : `<span class="wl-item-edit" data-wl-id="${escapeHtml(wl.id)}" title="Редактировать">✎</span>`;
             return `
             <div class="wl-item" data-wl-id="${escapeHtml(wl.id)}">
               ${wl.image ? `<img class="wl-item-img" src="${escapeHtml(wl.image)}" alt="">` : '<div class="wl-item-img" style="background:var(--border);flex-shrink:0;"></div>'}
@@ -1811,12 +1991,24 @@
                 <div>${escapeHtml(wl.name)}</div>
                 <span class="privacy-badge" style="font-size:0.7rem;margin-top:4px;display:inline-block;">${escapeHtml(pr)}</span>
               </div>
-              <span class="wl-item-edit" data-wl-id="${escapeHtml(wl.id)}" title="Редактировать">✎</span>
-              <span class="wl-item-remove" data-wl-id="${escapeHtml(wl.id)}">✕</span>
+              ${editBtn}
+              ${removeOrLeave}
             </div>`;
           }).join('');
       list.querySelectorAll('.wl-item-edit').forEach((el) => {
         el.addEventListener('click', () => openEditWlForm(el.dataset.wlId));
+      });
+      list.querySelectorAll('.wl-item-leave').forEach((el) => {
+        el.addEventListener('click', async () => {
+          const wlId = el.dataset.wlId;
+          if (el.dataset.followed === 'true') {
+            await leaveFollowedPublicWishlist(wlId);
+            if (useSupabase && sb) { const r = await loadWishlistsFromSupabase(); if (r.data) wishlists = r.data; } else wishlists = wishlists.filter((x) => x.id !== wlId);
+          } else {
+            await leaveWishlist(el.dataset.wlId);
+          }
+          openWlModal();
+        });
       });
       list.querySelectorAll('.wl-item-remove').forEach((el) => {
         el.addEventListener('click', async () => {
@@ -1877,7 +2069,7 @@
       tg?.HapticFeedback?.notificationOccurred?.('success');
     });
 
-    function openEditWlForm(wlId) {
+    async function openEditWlForm(wlId) {
       const wl = wishlists.find((x) => x.id === wlId);
       if (!wl) return;
       editingWlId = wlId;
@@ -1892,6 +2084,39 @@
         document.getElementById('wlImgPreviewEdit').src = wl.image;
         document.getElementById('wlImgPreviewEdit').style.display = 'block';
         document.getElementById('wlImgTextEdit').textContent = 'Изменить обложку';
+      }
+      const extras = document.getElementById('wlEditFormExtras');
+      extras.innerHTML = '';
+      const isCollab = wl.privacy === 'shared' && canEditWishlist(wl) && !isOwner(wl);
+      if (isCollab) {
+        extras.innerHTML = '<button type="button" class="btn btn-secondary" id="editWlLeave" style="margin-top:12px;">Покинуть вишлист</button>';
+        document.getElementById('editWlLeave').addEventListener('click', async () => { await leaveWishlist(wlId); document.getElementById('wlModal').classList.remove('open'); openWlModal(); });
+      } else if (wl.privacy === 'shared' && isOwner(wl)) {
+        const coAuths = (wl.coAuthorIds || []).filter((id) => id !== (wl.ownerId || wl.owner_id));
+        if (coAuths.length > 0) {
+          const names = await Promise.all(coAuths.map(async (uid) => {
+            if (useSupabase && sb) {
+              const { data } = await sb.from('users').select('first_name, username').eq('id', uid).single();
+              return data ? (data.username ? '@' + data.username : data.first_name || uid) : uid;
+            }
+            return uid;
+          }));
+          extras.innerHTML = `
+            <div class="form-group" style="margin-top:12px;">
+              <label>Удалить соавтора</label>
+              <select id="editWlRemoveCollab" style="width:100%;padding:8px 12px;margin-top:4px;border-radius:8px;background:var(--bg-card);color:var(--text-primary);border:1px solid var(--border);">
+                <option value="">— Выберите —</option>
+                ${coAuths.map((id, i) => `<option value="${escapeHtml(id)}">${escapeHtml(names[i] || id)}</option>`).join('')}
+              </select>
+              <button type="button" class="btn btn-secondary btn-sm" id="editWlRemoveCollabBtn" style="margin-top:8px;">Удалить</button>
+            </div>`;
+          document.getElementById('editWlRemoveCollabBtn').addEventListener('click', async () => {
+            const uid = document.getElementById('editWlRemoveCollab').value;
+            if (!uid) return;
+            await removeCollaborator(wlId, uid);
+            openEditWlForm(wlId);
+          });
+        }
       }
     }
 
