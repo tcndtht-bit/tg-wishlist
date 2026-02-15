@@ -800,7 +800,10 @@
         if (shortI && useSupabase && sb) {
           const wlId = shortI[1];
           try {
-            if (sessionStorage.getItem('declined_invite_' + wlId)) {
+            if (sessionStorage.getItem('accepted_invite_' + wlId)) {
+              sessionStorage.removeItem('accepted_invite_' + wlId);
+              hash = '';
+            } else if (sessionStorage.getItem('declined_invite_' + wlId)) {
               sessionStorage.removeItem('declined_invite_' + wlId);
               hash = '';
             } else {
@@ -1394,6 +1397,7 @@
       });
       const catOrder = Object.keys(byCat);
       content.innerHTML = `
+        <button class="btn back-btn" id="publicViewHomeBtn" style="margin-bottom:16px;">🏠 Домой</button>
         <div class="wl-section">
           <div class="wl-section-header">
             ${wl.image ? `<img class="wl-section-img" src="${escapeHtml(wl.image)}" alt="">` : ''}
@@ -1410,6 +1414,12 @@
             }).join('')}
           </div>
         </div>`;
+      content.querySelector('#publicViewHomeBtn')?.addEventListener('click', async () => {
+        publicViewData = null;
+        history.replaceState(null, '', window.location.pathname);
+        await loadAll();
+        render();
+      });
       content.querySelectorAll('.btn-reserve').forEach((b) => b.addEventListener('click', () => reserveCard(b.dataset.cardId)));
       content.querySelectorAll('.btn-unreserve').forEach((b) => b.addEventListener('click', () => unreserveCard(b.dataset.cardId)));
     }
@@ -1978,7 +1988,7 @@
 
     document.getElementById('inviteConsentAccept').addEventListener('click', async () => {
       if (!pendingInviteData) return;
-      const next = pendingInviteData;
+      const next = { ...pendingInviteData };
       pendingInviteData = null;
       document.getElementById('inviteConsentModal').classList.remove('open');
       if (next.fullPayload && !useSupabase) {
@@ -1986,16 +1996,17 @@
       } else if (useSupabase && sb) {
         await ensureUser();
         await sb.from('wishlist_collaborators').upsert({ wishlist_id: next.wlId, user_id: currentUserId }, { onConflict: 'wishlist_id,user_id' });
+        sessionStorage.setItem('accepted_invite_' + next.wlId, '1');
       }
-      window.location.hash = '';
       window.location.reload();
     });
 
     document.getElementById('inviteConsentDecline').addEventListener('click', () => {
       if (!pendingInviteData) return;
-      sessionStorage.setItem('declined_invite_' + pendingInviteData.wlId, '1');
+      const wlId = pendingInviteData.wlId;
       pendingInviteData = null;
       document.getElementById('inviteConsentModal').classList.remove('open');
+      sessionStorage.setItem('declined_invite_' + wlId, '1');
       window.location.reload();
     });
 
