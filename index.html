@@ -567,6 +567,11 @@
     const TELEGRAM_APP = 'wantthat';
 
     const tg = window.Telegram?.WebApp;
+    const _savedStartParam = (() => {
+      const h = window.location.hash.slice(1);
+      if (h) { try { const p = new URLSearchParams(h); const sp = p.get('tgWebAppStartParam'); if (sp) return sp; } catch (_) {} }
+      return tg?.initDataUnsafe?.start_param || '';
+    })();
     const WISHES_KEY = 'wishlist_wishes';
     const CATS_KEY = 'wishlist_categories';
     const WISHLISTS_KEY = 'wishlist_folders';
@@ -768,11 +773,18 @@
       window.location.reload();
     }
 
+    function getStartParam() {
+      if (_savedStartParam) return _savedStartParam;
+      const h = window.location.hash.slice(1);
+      if (h) { try { const sp = new URLSearchParams(h).get('tgWebAppStartParam'); if (sp) return sp; } catch (_) {} }
+      return tg?.initDataUnsafe?.start_param || '';
+    }
+
     async function loadAll() {
       let hash = window.location.hash.slice(1);
-      const startParam = tg?.initDataUnsafe?.start_param;
-      if (!hash && startParam) {
-        if (startParam.startsWith('w_') || startParam.startsWith('i_')) hash = startParam.replace('_', '/');
+      const startParam = getStartParam();
+      if (startParam && (startParam.startsWith('w_') || startParam.startsWith('i_'))) {
+        hash = startParam.replace('_', '/');
       }
       if (hash) {
         const shortW = /^w\/(.+)$/.exec(hash);
