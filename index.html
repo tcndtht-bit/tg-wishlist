@@ -566,6 +566,21 @@
     // Укажи username бота (без @) и short_name Mini App из BotFather
     const TELEGRAM_BOT = 'wantthat_bot';
     const TELEGRAM_APP = 'wantthat';
+    // OpenAI API ключ для анализа изображений (получи на https://platform.openai.com/api-keys)
+    // ВАЖНО: Для продакшена используй переменные окружения или серверный прокси для безопасности
+    const OPENAI_API_KEY = ''; // Укажи свой ключ здесь или через sessionStorage.setItem('openai_key', '...')
+    
+    // Токен Telegram бота для получения файлов (опционально, если бот передает URL напрямую - не нужен)
+    // sessionStorage.setItem('bot_token', 'YOUR_BOT_TOKEN');
+    
+    // ИНСТРУКЦИЯ ДЛЯ БОТА:
+    // Когда пользователь отправляет изображение в бота, бот должен:
+    // 1. Получить file_id или file_path изображения
+    // 2. Открыть Mini App с start_param:
+    //    - Вариант 1: img_url_<encoded_url> - где encoded_url это URL изображения (encodeURIComponent)
+    //    - Вариант 2: img_<file_id> - если используется bot_token для получения файла
+    // Пример: bot.openWebApp({ url: 'https://your-app.netlify.app', start_param: 'img_url_' + encodeURIComponent(imageUrl) })
+    // Мини-приложение автоматически проанализирует изображение и откроет форму с автозаполнением
 
     const tg = window.Telegram?.WebApp;
     const _savedStartParam = (() => {
@@ -658,6 +673,141 @@
       if (!u?.id || !useSupabase) return { error: null };
       const { error } = await sb.from('users').upsert({ id: 'tg_' + u.id, first_name: u.first_name, username: u.username }, { onConflict: 'id' });
       return { error };
+    }
+
+    async function getImageFromTelegram(fileId) {
+      try {
+        const botToken = sessionStorage.getItem('bot_token');
+        if (!botToken) {
+          tg?.showAlert?.('Токен бота не найден. Обратитесь к администратору.');
+          return null;
+        }
+        const response = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${fileId}`);
+        const data = await response.json();
+        if (!data.ok || !data.result?.file_path) return null;
+        return `https://api.telegram.org/file/bot${botToken}/${data.result.file_path}`;
+      } catch (e) {
+        console.error('Error getting image from Telegram:', e);
+        return null;
+      }
+    }
+    
+    function decodeImageUrl(encoded) {
+      try {
+        return decodeURIComponent(encoded);
+      } catch {
+        return null;
+      }
+    }
+
+    async function analyzeImageWithCV(imageUrl) {
+      const apiKey = OPENAI_API_KEY || sessionStorage.getItem('openai_key');
+      if (!apiKey) {
+        tg?.showAlert?.('Не указан OpenAI API ключ. Обратитесь к администратору.');
+        return null;
+      }
+      try {
+        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: 'gpt-4o',
+            messages: [{
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: `Проанализируй это изображение товара и извлеки информацию в формате JSON:
+{
+  "name": "название товара (точное название продукта)",
+  "price": число (только цифры, без валюты и пробелов),
+  "currency": "символ валюты (€, $, ₽, Br, ₸) или null если не найдено",
+  "size": "размер (M, L, XL, 42, 43, S, XXL и т.д.) или null если не найдено"
+}
+
+Важно:
+- name: точное название товара с изображения
+- price: только число (например, 1299, не "1 299" или "1,299")
+- currency: только символ валюты, если виден на изображении
+- size: размер одежды/обуви, если указан
+
+Если параметра нет на изображении, верни null для него.
+Отвечай ТОЛЬКО валидным JSON, без дополнительного текста или объяснений.`
+                },
+                {
+                  type: 'image_url',
+                  image_url: { url: imageUrl }
+                }
+              ]
+            }],
+            max_tokens: 300
+          })
+        });
+        const data = await response.json();
+        if (!data.choices?.[0]?.message?.content) return null;
+        const content = data.choices[0].message.content.trim();
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) return null;
+        return JSON.parse(jsonMatch[0]);
+      } catch (e) {
+        console.error('Error analyzing image:', e);
+        return null;
+      }
+    }
+
+    async function handleImageFromBot(fileId, imageUrl = null) {
+      tg?.showAlert?.('Анализирую изображение...');
+      await ensureUser();
+      if (useSupabase && sb) {
+        const wlRes = await loadWishlistsFromSupabase();
+        if (wlRes.data) wishlists = wlRes.data;
+        wishes = await loadWishesFromSupabase(new Set(wishlists.map((w) => w.id)));
+        wishes = Array.isArray(wishes) ? wishes : [];
+        const cats = await loadCategoriesFromSupabase();
+        categories = Array.isArray(cats) && cats.length ? cats : [...DEFAULT_CATS];
+      } else {
+        wishes = loadWishesSync();
+        wishes = Array.isArray(wishes) ? wishes : [];
+        try { wishlists = (JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
+        wishlists = Array.isArray(wishlists) ? wishlists : [];
+        try { const raw = safeGetItem(CATS_KEY); categories = raw ? JSON.parse(raw) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
+        categories = Array.isArray(categories) ? categories : [...DEFAULT_CATS];
+      }
+      if (!imageUrl && fileId) {
+        imageUrl = await getImageFromTelegram(fileId);
+      }
+      if (!imageUrl) {
+        tg?.showAlert?.('Не удалось получить изображение от бота.');
+        render();
+        return;
+      }
+      const extracted = await analyzeImageWithCV(imageUrl);
+      if (!extracted) {
+        tg?.showAlert?.('Не удалось проанализировать изображение. Открой форму вручную.');
+        render();
+        return;
+      }
+      let imageBase64;
+      try {
+        if (imageUrl.startsWith('data:')) {
+          imageBase64 = imageUrl;
+        } else {
+          imageBase64 = await fetch(imageUrl).then(r => r.blob()).then(blob => new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          }));
+        }
+      } catch (e) {
+        tg?.showAlert?.('Не удалось загрузить изображение.');
+        render();
+        return;
+      }
+      openWishModalFromImage(imageBase64, extracted);
     }
 
     async function loadWishesFromSupabase(wlIdSet) {
@@ -811,6 +961,16 @@
       const goHome = sessionStorage.getItem('publicViewGoHome');
       if (goHome) { sessionStorage.removeItem('publicViewGoHome'); hash = ''; }
       const startParam = goHome ? '' : getStartParam();
+      if (startParam && startParam.startsWith('img_')) {
+        const param = startParam.slice(4);
+        if (param.startsWith('url_')) {
+          const imageUrl = decodeImageUrl(param.slice(4));
+          if (imageUrl) await handleImageFromBot(null, imageUrl);
+        } else {
+          await handleImageFromBot(param);
+        }
+        return;
+      }
       if (startParam && (startParam.startsWith('w_') || startParam.startsWith('i_'))) {
         hash = startParam.replace('_', '/');
       }
@@ -1733,6 +1893,91 @@
         </div>`;
     }
 
+    function openWishModalFromImage(imageBase64, extractedData) {
+      tg?.HapticFeedback?.impactOccurred?.('light');
+      pendingImageBase64 = imageBase64;
+      const form = document.getElementById('wishForm');
+      form.reset();
+      document.getElementById('wishId').value = '';
+      document.getElementById('imgPreview').src = imageBase64;
+      document.getElementById('imgPreview').style.display = 'block';
+      document.getElementById('imgUploadText').textContent = 'Изменить фото';
+      ['imgError','nameError','linkError','priceError','sizeError'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) { el.style.display = 'none'; el.textContent = ''; }
+      });
+      document.getElementById('wishModalTitle').textContent = 'Проверь данные из изображения';
+      
+      const autoFilled = new Set();
+      if (extractedData.name) {
+        document.getElementById('wishName').value = extractedData.name;
+        autoFilled.add('name');
+      }
+      if (extractedData.price) {
+        document.getElementById('wishPrice').value = String(extractedData.price);
+        autoFilled.add('price');
+      }
+      if (extractedData.currency) {
+        document.getElementById('wishCurrency').value = extractedData.currency;
+        autoFilled.add('currency');
+      }
+      if (extractedData.size) {
+        document.getElementById('wishSize').value = extractedData.size;
+        autoFilled.add('size');
+      }
+      
+      const sel = document.getElementById('wishCategory');
+      sel.innerHTML = '<option value="">Без категории</option>' +
+        categories.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+
+      const wlSelect = document.getElementById('wishWishlistSelect');
+      const selectedIds = new Set();
+      const editableWishlists = wishlists.filter((wl) => !wl.isFollowedPublic);
+      const renderMultiselect = () => {
+        const names = editableWishlists.filter((wl) => selectedIds.has(wl.id)).map((wl) => wl.name);
+        trigger.innerHTML = names.length > 0
+          ? names.map((n) => `<span class="multiselect-chip">${escapeHtml(n)}</span>`).join('')
+          : '<span class="multiselect-placeholder">Выберите вишлисты</span>';
+        panel.querySelectorAll('.multiselect-option').forEach((opt) => opt.classList.toggle('selected', selectedIds.has(opt.dataset.id)));
+      };
+      wlSelect.innerHTML = editableWishlists.length === 0
+        ? '<span style="color:var(--text-secondary);font-size:0.9rem;">Нет вишлистов</span>'
+        : `<div class="multiselect-trigger" id="wlMultiselectTrigger"></div>
+           <div class="multiselect-panel" id="wlMultiselectPanel">
+             ${editableWishlists.map((wl) => `<div class="multiselect-option" data-id="${escapeHtml(wl.id)}">${escapeHtml(wl.name)}</div>`).join('')}
+           </div>`;
+      const trigger = document.getElementById('wlMultiselectTrigger');
+      const panel = document.getElementById('wlMultiselectPanel');
+      if (trigger && panel) {
+        trigger.addEventListener('click', (e) => { e.stopPropagation(); wlSelect.classList.toggle('open'); });
+        panel.querySelectorAll('.multiselect-option').forEach((opt) => {
+          opt.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const id = opt.dataset.id;
+            if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
+            renderMultiselect();
+          });
+        });
+        document.addEventListener('click', () => wlSelect.classList.remove('open'), { once: true });
+        wlSelect._getSelectedIds = () => [...selectedIds];
+        renderMultiselect();
+      }
+      
+      document.querySelectorAll('.form-group label').forEach((label) => {
+        const inputId = label.getAttribute('for');
+        if (!inputId) return;
+        const fieldName = inputId.replace('wish', '').toLowerCase();
+        if (autoFilled.has(fieldName)) {
+          label.style.color = 'var(--accent)';
+          label.innerHTML = label.textContent + ' <span style="font-size:0.7rem;opacity:0.7;">(автозаполнено)</span>';
+        }
+      });
+      
+      updateCounters();
+      document.getElementById('wishModal').classList.add('open');
+      tg?.showAlert?.('Проверь и при необходимости исправь данные. Заполни комментарий и выбери вишлист.');
+    }
+
     function openWishModal(editId = null, defaultWlId = null) {
       tg?.HapticFeedback?.impactOccurred?.('light');
       pendingImageBase64 = null;
@@ -1746,6 +1991,12 @@
         if (el) { el.style.display = 'none'; el.textContent = ''; }
       });
       document.getElementById('wishModalTitle').textContent = editId ? 'Редактировать желание' : 'Добавить желание';
+      
+      document.querySelectorAll('.form-group label').forEach((label) => {
+        label.style.color = '';
+        const text = label.textContent.replace(/\s*\(автозаполнено\)/g, '');
+        label.textContent = text;
+      });
 
       const sel = document.getElementById('wishCategory');
       sel.innerHTML = '<option value="">Без категории</option>' +
