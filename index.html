@@ -592,7 +592,7 @@
     // sessionStorage.setItem('bot_token', 'YOUR_BOT_TOKEN');
     
     // Какой API использовать (по умолчанию пробует бесплатные сначала, Tesseract работает везде!)
-    const CV_API_PRIORITY = ['openrouter', 'gemini', 'groq']; // OpenRouter первым
+    const CV_API_PRIORITY = ['openrouter', 'groq', 'gemini']; // OpenRouter → Groq → Gemini
     const CV_VISION_PROMPT = `Проанализируй изображение и извлеки информацию о товаре. Верни ТОЛЬКО валидный JSON:
 {"name":"строка или N/A","price":число или null,"currency":"строка или null","size":"строка или null"}
 1. name — СУЩЕСТВИТЕЛЬНОЕ или фраза-название товара. Осмысленно. Иначе "N/A".
@@ -1090,33 +1090,46 @@
     async function analyzeImageWithOpenRouter(imageUrl) {
       const apiKey = OPENROUTER_API_KEY || sessionStorage.getItem('openrouter_key');
       if (!apiKey) return null;
-      try {
-        const { url } = await prepareImageForVision(imageUrl);
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-          body: JSON.stringify({
-            model: 'google/gemini-2.0-flash:free',
-            messages: [{
-              role: 'user',
-              content: [
-                { type: 'text', text: CV_VISION_PROMPT },
-                { type: 'image_url', image_url: { url } }
-              ]
-            }],
-            max_tokens: 500
-          })
-        });
-        if (!response.ok) return null;
-        const data = await response.json();
-        const text = data.choices?.[0]?.message?.content;
-        if (!text) return null;
-        const m = text.match(/\{[\s\S]*\}/);
-        return m ? JSON.parse(m[0]) : null;
-      } catch (e) {
-        console.error('Error analyzing with OpenRouter:', e);
-        return null;
+      const models = ['google/gemini-2.0-flash-exp:free', 'google/gemini-2.0-flash:free'];
+      for (const model of models) {
+        try {
+          const { url } = await prepareImageForVision(imageUrl);
+          const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+            body: JSON.stringify({
+              model,
+              messages: [{
+                role: 'user',
+                content: [
+                  { type: 'text', text: CV_VISION_PROMPT },
+                  { type: 'image_url', image_url: { url } }
+                ]
+              }],
+              max_tokens: 500
+            })
+          });
+          if (!response.ok) {
+            const errText = await response.text();
+            console.warn('OpenRouter', model, response.status, errText);
+            if (models.indexOf(model) < models.length - 1) continue;
+            return null;
+          }
+          const data = await response.json();
+          const text = data.choices?.[0]?.message?.content;
+          if (!text) return null;
+          const m = text.match(/\{[\s\S]*\}/);
+          return m ? JSON.parse(m[0]) : null;
+        } catch (e) {
+          if (models.indexOf(model) < models.length - 1) {
+            console.warn('OpenRouter', model, e);
+            continue;
+          }
+          console.error('Error analyzing with OpenRouter:', e);
+          return null;
+        }
       }
+      return null;
     }
 
     async function analyzeImageWithOCRAPI(imageUrl) {
