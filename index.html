@@ -761,7 +761,7 @@
       try {
         console.log('Начинаю анализ через Tesseract...');
         // Показываем начальное сообщение один раз
-        tg?.showAlert?.('Распознаю текст через Tesseract... (макс 30 сек)');
+        safeShowAlert('Распознаю текст через Tesseract... (макс 30 сек)');
         let imageData;
         if (imageUrl.startsWith('data:')) {
           imageData = imageUrl;
@@ -784,14 +784,8 @@
               // Логируем в консоль вместо обновления popup
               console.log(`Tesseract прогресс: ${progress}%`);
               // Обновляем сообщение только на ключевых этапах (25%, 50%, 75%, 100%)
-              // и только если popup не открыт (проверяем через try-catch)
               if (progress === 25 || progress === 50 || progress === 75 || progress === 100) {
-                try {
-                  tg?.showAlert?.(`Tesseract: ${progress}%`);
-                } catch (e) {
-                  // Игнорируем ошибку если popup уже открыт
-                  console.log('Не удалось обновить popup (уже открыт)');
-                }
+                safeShowAlert(`Tesseract: ${progress}%`);
               }
             }
           }
@@ -1000,18 +994,18 @@
       }
     }
 
+    // Функция для безопасного показа alert (с обработкой ошибки "popup already opened")
+    function safeShowAlert(message) {
+      try {
+        tg?.showAlert?.(message);
+      } catch (e) {
+        // Игнорируем ошибку если popup уже открыт, просто логируем
+        console.log(`Не удалось показать alert (popup уже открыт): ${message}`);
+      }
+    }
+
     async function analyzeImageWithCV(imageUrl, timeoutMs = 30000) {
       const priority = CV_API_PRIORITY || ['tesseract', 'gemini', 'ocrapi', 'openai'];
-      
-      // Функция для безопасного показа alert (с обработкой ошибки "popup already opened")
-      const safeShowAlert = (message) => {
-        try {
-          tg?.showAlert?.(message);
-        } catch (e) {
-          // Игнорируем ошибку если popup уже открыт, просто логируем
-          console.log(`Не удалось показать alert (popup уже открыт): ${message}`);
-        }
-      };
       
       for (const api of priority) {
         let result = null;
@@ -1095,17 +1089,12 @@
     async function handleImageFromBot(fileId, imageUrl = null) {
       console.log('handleImageFromBot called:', { fileId, imageUrl });
       
-      try {
-        // Показываем начальное сообщение один раз
-        // Используем try-catch чтобы не упасть если popup уже открыт
         try {
-          tg?.showAlert?.('Начинаю анализ изображения...');
-        } catch (e) {
-          console.log('Не удалось показать начальный alert:', e);
-        }
-        
-        // Убеждаемся, что пользователь авторизован (данные уже загружены в loadAll)
-        await ensureUser();
+          // Показываем начальное сообщение один раз
+          safeShowAlert('Начинаю анализ изображения...');
+          
+          // Убеждаемся, что пользователь авторизован (данные уже загружены в loadAll)
+          await ensureUser();
         
         // Убеждаемся, что данные загружены (если они были потеряны)
         if (!wishlists || wishlists.length === 0 || !wishes || !categories || categories.length === 0) {
@@ -1132,7 +1121,7 @@
           imageUrl = await getImageFromTelegram(fileId);
         }
         if (!imageUrl) {
-          tg?.showAlert?.('Не удалось получить изображение от бота.');
+          safeShowAlert('Не удалось получить изображение от бота.');
           currentView = 'main';
           render();
           return;
@@ -1142,14 +1131,14 @@
         let extracted;
         try {
           // Показываем начальное сообщение
-          tg?.showAlert?.('Начинаю анализ изображения...');
+          safeShowAlert('Начинаю анализ изображения...');
           
           // Запускаем анализ с таймаутом
           extracted = await analyzeImageWithCV(imageUrl, 30000);
           
           // Если анализ не дал результата, показываем сообщение
           if (!extracted) {
-            tg?.showAlert?.('Не удалось проанализировать изображение. Попробуй другое фото или открой форму вручную.');
+            safeShowAlert('Не удалось проанализировать изображение. Попробуй другое фото или открой форму вручную.');
             currentView = 'main';
             render();
             return;
@@ -1158,9 +1147,9 @@
           console.error('Ошибка анализа изображения:', e);
           const errorMsg = e.message || String(e);
           if (errorMsg.includes('Таймаут')) {
-            tg?.showAlert?.('Анализ занял слишком много времени (>30 сек). Попробуй другое фото или открой форму вручную.');
+            safeShowAlert('Анализ занял слишком много времени (>30 сек). Попробуй другое фото или открой форму вручную.');
           } else {
-            tg?.showAlert?.('Не удалось проанализировать изображение. Попробуй другое фото или открой форму вручную.');
+            safeShowAlert('Не удалось проанализировать изображение. Попробуй другое фото или открой форму вручную.');
           }
           currentView = 'main';
           render();
@@ -1182,7 +1171,7 @@
           }
         } catch (e) {
           console.error('Ошибка загрузки изображения:', e);
-          tg?.showAlert?.('Не удалось загрузить изображение.');
+          safeShowAlert('Не удалось загрузить изображение.');
           currentView = 'main';
           render();
           return;
@@ -1193,7 +1182,7 @@
         
       } catch (e) {
         console.error('Критическая ошибка в handleImageFromBot:', e);
-        tg?.showAlert?.('Произошла ошибка при обработке изображения. Попробуй еще раз.');
+        safeShowAlert('Произошла ошибка при обработке изображения. Попробуй еще раз.');
         currentView = 'main';
         render();
       }
