@@ -1407,35 +1407,26 @@
             categories = Array.isArray(categories) ? categories : [...DEFAULT_CATS];
           }
         };
-        const fetchProxy = () =>
-          fetch(`/image-proxy?url=${encodeURIComponent(telegramUrl)}`)
-            .then(r => { if (!r.ok) throw new Error('Proxy failed'); return r.json(); })
-            .then(d => d.base64 || null);
-        let imageUrl;
-        try {
-          [imageUrl] = await Promise.all([fetchProxy(), loadData()]);
-        } catch (e) {
-          console.error('Ошибка загрузки:', e);
-          isLoading = false;
-          safeShowAlert('Не удалось загрузить изображение.');
-          currentView = 'main';
-          render();
-          return;
-        }
-        if (imageUrl) {
-          isLoading = false;
-          handleImageFromBot(null, imageUrl).catch(e => {
-            console.error('Ошибка в handleImageFromBot:', e);
-            currentView = 'main';
-            render();
-          });
-          currentView = 'main';
-          render();
-          return;
-        }
+        // Загружаем данные, показываем главную сразу — не блокируем на fetch изображения (iOS)
+        await loadData();
         isLoading = false;
         currentView = 'main';
         render();
+        const fetchProxy = () => {
+          const ctrl = new AbortController();
+          const t = setTimeout(() => ctrl.abort(), 15000);
+          return fetch(`/image-proxy?url=${encodeURIComponent(telegramUrl)}`, { signal: ctrl.signal })
+            .then(r => { if (!r.ok) throw new Error('Proxy failed'); return r.json(); })
+            .then(d => d.base64 || null)
+            .finally(() => clearTimeout(t));
+        };
+        fetchProxy().then((imageUrl) => {
+          if (imageUrl) handleImageFromBot(null, imageUrl).catch(e => { console.error('handleImageFromBot:', e); safeShowAlert('Ошибка анализа изображения.'); });
+          else safeShowAlert('Не удалось загрузить изображение. Добавь желание по фото с главной.');
+        }).catch((e) => {
+          console.error('Ошибка загрузки изображения:', e);
+          safeShowAlert('Не удалось загрузить изображение. Добавь желание по фото с главной.');
+        });
         return;
       }
       if (startParam && (startParam.startsWith('w_') || startParam.startsWith('i_'))) {
@@ -3110,10 +3101,10 @@
       };
       try {
         const loadPromise = loadAll();
-        const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000));
+        const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 20000));
         await Promise.race([loadPromise, timeout]);
       } catch (e) {
-        console.error('Load error:', e);
+        console.error('Load error:', e?.message || e);
         fallbackToLocal();
       }
       isLoading = false;
