@@ -6,9 +6,6 @@
   <title>Вишлист</title>
   <link rel="icon" href="data:,">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     :root {
       --bg-primary: #1a1a2e;
@@ -329,6 +326,13 @@
     }
     .multiselect-option:last-child { border-bottom: none; }
     .multiselect-option:hover, .multiselect-option.selected { background: rgba(233,69,96,0.2); }
+    .skeleton { background: linear-gradient(90deg, var(--bg-card) 25%, var(--border) 50%, var(--bg-card) 75%); background-size: 200% 100%; animation: skeleton 1.2s ease-in-out infinite; border-radius: 12px; }
+    .skeleton-text { height: 16px; margin-bottom: 8px; }
+    .skeleton-btn { height: 44px; }
+    .skeleton-recent { height: 44px; margin-bottom: 8px; }
+    @keyframes skeleton { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+    .card { content-visibility: auto; contain-intrinsic-size: auto 280px; }
+    .wl-item { content-visibility: auto; contain-intrinsic-size: auto 72px; }
     @media (min-width: 480px) {
       .modal { border-radius: 24px; margin: auto 16px 16px; }
     }
@@ -555,35 +559,34 @@
     const SUPABASE_URL = 'https://ieounwqtaxpozwdgbwpn.supabase.co';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imllb3Vud3F0YXhwb3p3ZGdid3BuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExMjI5ODgsImV4cCI6MjA4NjY5ODk4OH0.axb4HUzkz-VZ2pJZOR08gY-q4Na3U1gcxbK2eLtZRcg';
     let sb = null;
-    try {
-      if (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase) {
-        sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-          auth: { persistSession: false }
-        });
-      }
-    } catch (_) {}
-    const useSupabase = !!sb;
+    const useSupabase = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        if (document.querySelector('script[src="' + src + '"]')) { resolve(); return; }
+        const s = document.createElement('script'); s.src = src;
+        s.onload = () => resolve(); s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+    async function loadSupabase() {
+      if (sb) return;
+      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
+      await loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2');
+      sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+    }
+    let _lzReady = null;
+    async function ensureLzString() {
+      if (typeof LZString !== 'undefined') return;
+      if (_lzReady) return _lzReady;
+      _lzReady = loadScript('https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js');
+      await _lzReady;
+    }
 
     // --- Telegram Bot: для ссылок «Поделиться» / «Пригласить» — чтобы открывались в боте ---
     // Укажи username бота (без @) и short_name Mini App из BotFather
     const TELEGRAM_BOT = 'wantthat_bot';
     const TELEGRAM_APP = 'wantthat';
-    // API ключи для анализа изображений (выбери один вариант):
-    // ВАРИАНТ 1: Tesseract.js (БЕСПЛАТНО, работает в браузере, доступен в Беларуси!)
-    // Не требует ключа - работает сразу! Рекомендуется для Беларуси/России.
-    
-    // ВАРИАНТ 2: Google Gemini (БЕСПЛАТНО до 15 запросов/мин, может быть заблокирован)
-    const GEMINI_API_KEY = 'AIzaSyCi_FCso6btBPX-p_qZZ69lu78age4P-ww'; // Gemini API — запасной Vision
-    // sessionStorage.setItem('gemini_key', '...')
-    
-    // ВАРИАНТ 3: OCRAPI.cloud (БЕСПЛАТНО 250 запросов/месяц)
-    const OCRAPI_KEY = ''; // Получи на https://ocr.space/ocrapi
-    // sessionStorage.setItem('ocrapi_key', '...')
-    
-    // ВАРИАНТ 4: OpenAI (платный, ~$0.01-0.03 за изображение)
-    const OPENAI_API_KEY = ''; // sessionStorage.setItem('openai_key', '...')
-    
-    // Groq (бесплатно, Llama 4 Vision)
+    const GEMINI_API_KEY = 'AIzaSyCi_FCso6btBPX-p_qZZ69lu78age4P-ww';
     const GROQ_API_KEY = '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';
     // OpenRouter (бесплатные модели)
     const OPENROUTER_API_KEY = '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';
@@ -727,6 +730,7 @@
     let editingWlId = null;
     let currentView = 'main';
     let selectedWlId = null;
+    let isLoading = true;
 
     function migrateWish(w) {
       const ids = Array.isArray(w.wishlistIds) ? w.wishlistIds : (w.wishlistId ? [w.wishlistId] : []);
@@ -741,227 +745,10 @@
       return { error };
     }
 
-    async function getImageFromTelegram(fileId) {
-      try {
-        const botToken = sessionStorage.getItem('bot_token');
-        if (!botToken) {
-          tg?.showAlert?.('Токен бота не найден. Обратитесь к администратору.');
-          return null;
-        }
-        const response = await fetch(`https://api.telegram.org/bot${botToken}/getFile?file_id=${fileId}`);
-        const data = await response.json();
-        if (!data.ok || !data.result?.file_path) return null;
-        return `https://api.telegram.org/file/bot${botToken}/${data.result.file_path}`;
-      } catch (e) {
-        console.error('Error getting image from Telegram:', e);
-        return null;
-      }
-    }
-    
     function decodeImageUrl(encoded) {
       try {
         return decodeURIComponent(encoded);
       } catch {
-        return null;
-      }
-    }
-
-    async function analyzeImageWithTesseract(imageUrl) {
-      if (typeof Tesseract === 'undefined') {
-        console.error('Tesseract.js not loaded');
-        return null;
-      }
-      try {
-        console.log('Начинаю анализ через Tesseract...');
-        let imageData;
-        if (imageUrl.startsWith('data:')) {
-          imageData = imageUrl;
-        } else {
-          const response = await fetch(imageUrl);
-          const blob = await response.blob();
-          imageData = await new Promise((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result);
-            reader.readAsDataURL(blob);
-          });
-        }
-        
-        // Worker + recognize с blocks для bbox (название обычно крупнее)
-        const worker = await Tesseract.createWorker('rus+eng', 1, {
-          logger: (m) => {
-            if (m.status === 'recognizing text') {
-              console.log(`Tesseract прогресс: ${Math.round(m.progress * 100)}%`);
-            }
-          }
-        });
-        const { data } = await worker.recognize(imageData, {}, { text: true, blocks: true });
-        await worker.terminate();
-        const text = data?.text || '';
-        if (!text || text.trim().length < 5) return null;
-
-        // Собираем строки с bbox (1), позицией y0 (5), порядком появления index (2)
-        const linesWithBbox = [];
-        let lineIndex = 0;
-        const pushLine = (line) => {
-          const t = (line.text || '').trim();
-          if (!t) return;
-          const b = line.bbox || { x0: 0, y0: 0, x1: 0, y1: 0 };
-          const h = (b.y1 || 0) - (b.y0 || 0);
-          const w = (b.x1 || 0) - (b.x0 || 0);
-          linesWithBbox.push({ text: t, area: w * h, height: h, y0: b.y0 ?? 0, index: lineIndex++ });
-        };
-        if (data?.blocks) {
-          for (const block of data.blocks) {
-            if (block.paragraphs) {
-              for (const par of block.paragraphs) {
-                if (par.lines) for (const line of par.lines) pushLine(line);
-              }
-            } else if (block.lines) {
-              for (const line of block.lines) pushLine(line);
-            }
-          }
-        }
-        const lines = linesWithBbox.length ? linesWithBbox.map(l => l.text) : text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-        let name = null;
-        let price = null;
-        let currency = null;
-        let size = null;
-        const fullText = text.toLowerCase();
-        
-        // Вариант 4: стоп-слова признаков (степень помола, регулируемая и т.п.) — не название
-        const FEATURE_STOP_WORDS = ['степень', 'степени', 'степенью', 'помола', 'помол', 'помолу', 'регулируемая', 'регулируемый', 'регулировка', 'металлический', 'стильный', 'дизайн', 'материал', 'режим', 'функция', 'параметр', 'характеристика', 'цвет', 'оттенок', 'высокое', 'качество', 'премиум'];
-        const isOnlyFeatures = (line) => {
-          const words = line.toLowerCase().split(/\s+/).filter(w => w.length >= 2);
-          if (words.length === 0) return true;
-          return words.every(w => FEATURE_STOP_WORDS.includes(w));
-        };
-
-        const isBadName = (line) => {
-          const lineLower = line.toLowerCase();
-          if (isOnlyFeatures(line)) return true;
-          if (/[|<>\\\/]/.test(line)) return true; // мусор OCR: | < > \ /
-          const skipKeywords = ['цена', 'price', 'стоимость', 'cost', 'размер', 'size', 'руб', 'рублей', 'бел', 'byn', 'usd', 'eur', 'шт', 'шт.', 'осталось', 'до конца', 'единиц', 'единицы', 'акция', 'скидка', 'распродажа', 'промо', 'спецпредложение', 'только сегодня', 'главная', 'каталог', 'избранное', 'корзина', 'ozon', 'wildberries', 'яндекс маркет', 'мой ozon', 'мой wb'];
-          if (skipKeywords.some(k => lineLower.includes(k))) return true;
-          if ((line.match(/[—–−]/g) || []).length >= 2 || /~~/.test(line)) return true; // хлебные крошки: "А — Б — В" или "А ~~ Б"
-          if (/^\d+[\s,\.]?\d*$/.test(line)) return true; // только цифры
-          if (/^\d{1,2}:\d{2}/.test(line)) return true; // время 15:52
-          if (/[@+]\s*[a-z0-9]/i.test(line) || line.includes('@')) return true; // контакты
-          // Символы-мусор OCR: ©®™℠ ±×÷°¬∞≠≤≥ ¢£¤ «»‹›‚„""'' •◦… §¶†‡№⁄℅ ←→↑↓⇒↔ псевдографика U+2500–257F
-          if (/[\u00A9\u00AE\u2122\u2120|<>\\\/!@#$%^&*+=\[\]{}®©™℠±×÷°¬∞≠≤≥¢£¤«»‹›‚„"''•◦…§¶†‡№⁄℅←→↑↓⇒↔\u2500-\u257F´`¨˚˜˝˘ˇ˙¸˛]/.test(line)) return true;
-          if (/^[=\-_]/.test(line) || /^[=\-_\s]+/.test(line) || /^[=\-_]+[a-zа-яё]*$/i.test(line)) return true; // "- =вы"
-          if (/^[€$₽Br₸\s\d,\.]+$/.test(lineLower)) return true;
-          if (line.length < 5 || line.length > 80) return true;
-          if (/^[\d\s:.,]+$/.test(line)) return true; // только цифры/время
-          const letters = (line.match(/[a-zA-Zа-яА-ЯёЁ]/g) || []).length;
-          const total = (line.match(/[a-zA-Zа-яА-ЯёЁ0-9]/g) || []).length;
-          if (letters < 3) return true; // слишком мало букв
-          if (total > 0 && letters / total < 0.7) return true; // доля букв < 70% — мусор
-          return false;
-        };
-        
-        // Приоритет существительным: прилагательные часто оканчиваются на -ая, -ый, -ое, -ий и т.д.
-        const looksLikeAdjective = (line) => /[а-яё](ая|ый|ое|ий|яя|ее|ой|ие|ые|ую|ую)$/i.test(line.trim());
-        
-        // Сначала ищем цену рядом с валютой (BYN, Br, ₽ и т.д.) — приоритет
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i];
-          const lineLower = line.toLowerCase();
-          if (!price && lineLower.match(/byn|br|₽|руб|usd|\$|eur|€|₸/)) {
-            const priceWithCurrency = line.match(/([0-9\s]+[,\.][0-9]{2})\s*(?:byn|br|₽|руб|usd|\$|eur|€|₸)/i)
-              || line.match(/([0-9]{2,7}[,\.][0-9]{0,2})/);
-            if (priceWithCurrency) {
-              const priceStr = priceWithCurrency[1].replace(/\s/g, '').replace(',', '.');
-              const priceNum = parseFloat(priceStr);
-              if (priceNum >= 0.01 && priceNum <= 9999999) {
-                price = Math.round(priceNum * 100) / 100;
-                if (lineLower.includes('byn') || lineLower.includes('br')) currency = 'Br';
-                else if (lineLower.includes('руб') || lineLower.includes('₽') || lineLower.includes('бел')) currency = '₽';
-                else if (lineLower.includes('usd') || line.includes('$')) currency = '$';
-                else if (lineLower.includes('eur') || line.includes('€')) currency = '€';
-                else if (lineLower.includes('₸')) currency = '₸';
-              }
-            }
-          }
-        }
-        
-        // Варианты 1+2+5: bbox (крупнее), позиция (y0 — выше), порядок (раньше)
-        const candidates = linesWithBbox.length
-          ? [...linesWithBbox].sort((a, b) => {
-              const da = (b.area || 0) - (a.area || 0);
-              if (da !== 0) return da;
-              const dy = (a.y0 ?? 9999) - (b.y0 ?? 9999); // меньше y0 = выше в кадре
-              if (dy !== 0) return dy;
-              return (a.index ?? 0) - (b.index ?? 0); // раньше в потоке текста
-            })
-          : lines.map((t, i) => ({ text: t, area: 0, y0: i * 20, index: i }));
-        for (let i = 0; i < candidates.length && !name; i++) {
-          const line = candidates[i].text || candidates[i];
-          const trimmed = String(line).trim();
-          if (!isBadName(trimmed) && !looksLikeAdjective(trimmed)) name = trimmed;
-        }
-        if (!name) {
-          for (let i = 0; i < candidates.length && !name; i++) {
-            const line = candidates[i].text || candidates[i];
-            const trimmed = String(line).trim();
-            if (!isBadName(trimmed)) name = trimmed;
-          }
-        }
-
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i];
-          const lineLower = line.toLowerCase();
-          if (!price) {
-            const priceWithLabel = line.match(/(?:цена|price|стоимость|cost)[\s:]*([0-9\s,\.]+)/i);
-            const priceOnly = line.match(/([0-9]{2,7}[,\.][0-9]{0,2}|[0-9]{2,7})/);
-            const priceMatch = priceWithLabel || priceOnly;
-            if (priceMatch) {
-              const priceStr = priceMatch[1].replace(/\s/g, '').replace(',', '.');
-              const priceNum = parseFloat(priceStr);
-              if (priceNum >= 10 && priceNum <= 9999999) {
-                price = priceNum % 1 ? Math.round(priceNum * 100) / 100 : priceNum;
-              }
-            }
-          }
-          if (!currency) {
-            const currencyMatch = line.match(/([€$₽Br₸])/) || (lineLower.match(/byn|br/i) ? 'Br' : null) || (lineLower.match(/руб|бел|byr/i) ? '₽' : null) || (lineLower.match(/usd|долл/i) ? '$' : null) || (lineLower.match(/eur|евр/i) ? '€' : null);
-            if (currencyMatch) {
-              currency = typeof currencyMatch === 'string' ? currencyMatch : currencyMatch[1];
-            }
-          }
-          // Размер: только текстовый XXS-XL или числовой — только при распознанной обуви
-          const footwearKeywords = /обувь|кроссовки|туфли|ботинки|сапоги|размер обуви|shoe|boot|sneaker/i;
-          const textSizeMatch = line.match(/\b(xxs|xxxs|xs|s|m|l|xl|xxl|xxxl|2xl|3xl)\b/i);
-          if (textSizeMatch && !size) {
-            size = textSizeMatch[1].toUpperCase();
-          }
-          if (!size && footwearKeywords.test(fullText)) {
-            const sizeWithLabel = line.match(/(?:размер|size)[\s:]*(\d{2,3})/i);
-            if (sizeWithLabel && parseInt(sizeWithLabel[1]) >= 20 && parseInt(sizeWithLabel[1]) <= 50) {
-              size = sizeWithLabel[1];
-            }
-          }
-        }
-        if (!name && lines.length > 0) {
-          // Пробуем существительные (не прилагательные)
-          for (const ln of lines) {
-            if (!isBadName(ln) && !looksLikeAdjective(ln.trim())) {
-              name = ln.trim();
-              break;
-            }
-          }
-          // Если не нашли — берём любое подходящее (в т.ч. прилагательное)
-          if (!name) {
-            for (const ln of lines) {
-              if (!isBadName(ln)) {
-                name = ln.trim();
-                break;
-              }
-            }
-          }
-        }
-        return { name, price, currency, size };
-      } catch (e) {
-        console.error('Error analyzing with Tesseract:', e);
         return null;
       }
     }
@@ -1135,100 +922,6 @@
       return null;
     }
 
-    async function analyzeImageWithOCRAPI(imageUrl) {
-      const apiKey = OCRAPI_KEY || sessionStorage.getItem('ocrapi_key');
-      if (!apiKey) return null;
-      try {
-        const formData = new FormData();
-        if (imageUrl.startsWith('data:')) {
-          const blob = await fetch(imageUrl).then(r => r.blob());
-          formData.append('file', blob, 'image.jpg');
-        } else {
-          const response = await fetch(imageUrl);
-          const blob = await response.blob();
-          formData.append('file', blob, 'image.jpg');
-        }
-        formData.append('language', 'rus+eng');
-        formData.append('isOverlayRequired', 'false');
-        const ocrResponse = await fetch('https://api.ocr.space/parse/image', {
-          method: 'POST',
-          headers: { 'apikey': apiKey },
-          body: formData
-        });
-        const ocrData = await ocrResponse.json();
-        const extractedText = ocrData.ParsedResults?.[0]?.ParsedText || '';
-        if (!extractedText) return null;
-        const nameMatch = extractedText.match(/(?:название|name|товар|product)[\s:]*([^\n\r]+)/i);
-        const priceMatch = extractedText.match(/(?:цена|price|стоимость)[\s:]*([0-9\s,\.]+)/i);
-        const currencyMatch = extractedText.match(/([€$₽Br₸])/);
-        const sizeMatch = extractedText.match(/(?:размер|size)[\s:]*([MXLS\d]+)/i);
-        return {
-          name: nameMatch ? nameMatch[1].trim() : null,
-          price: priceMatch ? parseInt(priceMatch[1].replace(/\s/g, '').replace(',', '.')) : null,
-          currency: currencyMatch ? currencyMatch[1] : null,
-          size: sizeMatch ? sizeMatch[1].trim() : null
-        };
-      } catch (e) {
-        console.error('Error analyzing with OCRAPI:', e);
-        return null;
-      }
-    }
-
-    async function analyzeImageWithOpenAI(imageUrl) {
-      const apiKey = OPENAI_API_KEY || sessionStorage.getItem('openai_key');
-      if (!apiKey) return null;
-      try {
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o',
-            messages: [{
-              role: 'user',
-              content: [
-                {
-                  type: 'text',
-                  text: `Проанализируй это изображение товара и извлеки информацию в формате JSON:
-{
-  "name": "название товара (точное название продукта)",
-  "price": число (только цифры, без валюты и пробелов),
-  "currency": "символ валюты (€, $, ₽, Br, ₸) или null если не найдено",
-  "size": "размер (M, L, XL, 42, 43, S, XXL и т.д.) или null если не найдено"
-}
-
-Важно:
-- name: точное название товара с изображения
-- price: только число (например, 1299, не "1 299" или "1,299")
-- currency: только символ валюты, если виден на изображении
-- size: размер одежды/обуви, если указан
-
-Если параметра нет на изображении, верни null для него.
-Отвечай ТОЛЬКО валидным JSON, без дополнительного текста или объяснений.`
-                },
-                {
-                  type: 'image_url',
-                  image_url: { url: imageUrl }
-                }
-              ]
-            }],
-            max_tokens: 300
-          })
-        });
-        const data = await response.json();
-        if (!data.choices?.[0]?.message?.content) return null;
-        const content = data.choices[0].message.content.trim();
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) return null;
-        return JSON.parse(jsonMatch[0]);
-      } catch (e) {
-        console.error('Error analyzing with OpenAI:', e);
-        return null;
-      }
-    }
-
     // Функция для безопасного показа alert (с обработкой ошибки "popup already opened")
     function safeShowAlert(message) {
       try {
@@ -1239,8 +932,8 @@
       }
     }
 
-    async function analyzeImageWithCV(imageUrl, timeoutMs = 30000) {
-      const priority = CV_API_PRIORITY || ['tesseract', 'gemini', 'ocrapi', 'openai'];
+    async function analyzeImageWithCV(imageUrl, timeoutMs = 12000) {
+      const priority = CV_API_PRIORITY || ['openrouter', 'groq', 'gemini'];
       
       for (const api of priority) {
         let result = null;
@@ -1250,23 +943,11 @@
         try {
           console.log(`Пробую анализ через ${api}...`);
           
-          // Создаем промис с таймаутом для каждой функции анализа
           let analysisPromise;
-          if (api === 'tesseract') {
-            analysisPromise = analyzeImageWithTesseract(imageUrl);
-          } else if (api === 'gemini') {
-            analysisPromise = analyzeImageWithGemini(imageUrl);
-          } else if (api === 'groq') {
-            analysisPromise = analyzeImageWithGroq(imageUrl);
-          } else if (api === 'openrouter') {
-            analysisPromise = analyzeImageWithOpenRouter(imageUrl);
-          } else if (api === 'openai') {
-            analysisPromise = analyzeImageWithOpenAI(imageUrl);
-          } else if (api === 'ocrapi') {
-            analysisPromise = analyzeImageWithOCRAPI(imageUrl);
-          } else {
-            continue;
-          }
+          if (api === 'gemini') analysisPromise = analyzeImageWithGemini(imageUrl);
+          else if (api === 'groq') analysisPromise = analyzeImageWithGroq(imageUrl);
+          else if (api === 'openrouter') analysisPromise = analyzeImageWithOpenRouter(imageUrl);
+          else continue;
           
           // Создаем промис с таймаутом
           const timeoutPromise = new Promise((_, reject) => {
@@ -1350,10 +1031,6 @@
           }
         }
         
-        // Получаем URL изображения
-        if (!imageUrl && fileId) {
-          imageUrl = await getImageFromTelegram(fileId);
-        }
         if (!imageUrl) {
           safeShowAlert('Не удалось получить изображение от бота.');
           currentView = 'main';
@@ -1382,7 +1059,7 @@
         // Не показываем popup во время анализа — он не закрывается автоматически
         let extracted;
         try {
-          extracted = await analyzeImageWithCV(imageUrl, 30000);
+          extracted = await analyzeImageWithCV(imageUrl, 12000);
           
           // Если анализ не дал результата, показываем сообщение
           if (!extracted) {
@@ -1458,29 +1135,36 @@
     }
 
     async function loadWishlistsFromSupabase() {
-      const { data: owned, error: errOwned } = await sb.from('wishlists').select('*').eq('owner_id', currentUserId);
-      if (errOwned) return { data: [], error: errOwned };
-      const { data: collab } = await sb.from('wishlist_collaborators').select('wishlist_id').eq('user_id', currentUserId);
-      const collabIds = (collab || []).map((c) => c.wishlist_id);
-      const { data: shared } = collabIds.length ? await sb.from('wishlists').select('*').in('id', collabIds) : { data: [] };
+      const [ownedRes, collabRes, followedRes] = await Promise.all([
+        sb.from('wishlists').select('*').eq('owner_id', currentUserId),
+        sb.from('wishlist_collaborators').select('wishlist_id').eq('user_id', currentUserId),
+        sb.from('followed_public_wishlists').select('wishlist_id').eq('user_id', currentUserId)
+      ]);
+      if (ownedRes.error) return { data: [], error: ownedRes.error };
+      const owned = ownedRes.data || [];
+      const collab = collabRes.data || [];
+      const followedRows = followedRes.data || [];
+      const collabIds = collab.map((c) => c.wishlist_id);
       const byId = {};
-      (owned || []).forEach((w) => { byId[w.id] = { ...w, ownerId: w.owner_id, coAuthorIds: [w.owner_id] }; });
-      (shared || []).forEach((w) => {
+      owned.forEach((w) => { byId[w.id] = { ...w, ownerId: w.owner_id, coAuthorIds: [w.owner_id] }; });
+      const [sharedRes, allCollabRes] = await Promise.all([
+        collabIds.length ? sb.from('wishlists').select('*').in('id', collabIds) : { data: [] },
+        Object.keys(byId).length ? sb.from('wishlist_collaborators').select('wishlist_id, user_id').in('wishlist_id', Object.keys(byId)) : { data: [] }
+      ]);
+      const shared = sharedRes.data || [];
+      const allCollab = allCollabRes.data || [];
+      shared.forEach((w) => {
         if (!byId[w.id]) byId[w.id] = { ...w, ownerId: w.owner_id, coAuthorIds: [w.owner_id] };
         if (!byId[w.id].coAuthorIds.includes(currentUserId)) byId[w.id].coAuthorIds.push(currentUserId);
       });
-      const { data: allCollab } = Object.keys(byId).length ? await sb.from('wishlist_collaborators').select('wishlist_id, user_id').in('wishlist_id', Object.keys(byId)) : { data: [] };
-      allCollab?.forEach((c) => {
+      allCollab.forEach((c) => {
         if (byId[c.wishlist_id] && !byId[c.wishlist_id].coAuthorIds.includes(c.user_id)) byId[c.wishlist_id].coAuthorIds.push(c.user_id);
       });
-      try {
-        const { data: followedRows } = await sb.from('followed_public_wishlists').select('wishlist_id').eq('user_id', currentUserId);
-        const followedIds = (followedRows || []).map((r) => r.wishlist_id).filter((id) => !byId[id]);
-        if (followedIds.length > 0) {
-          const { data: followedWls } = await sb.from('wishlists').select('*').in('id', followedIds).eq('privacy', 'public');
-          (followedWls || []).forEach((w) => { byId[w.id] = { ...w, ownerId: w.owner_id, isFollowedPublic: true }; });
-        }
-      } catch (_) {}
+      const followedIds = followedRows.map((r) => r.wishlist_id).filter((id) => !byId[id]);
+      if (followedIds.length > 0) {
+        const { data: followedWls } = await sb.from('wishlists').select('*').in('id', followedIds).eq('privacy', 'public');
+        (followedWls || []).forEach((w) => { byId[w.id] = { ...w, ownerId: w.owner_id, isFollowedPublic: true }; });
+      }
       return { data: Object.values(byId).map(migrateWishlist), error: null };
     }
 
@@ -1656,11 +1340,12 @@
     }
 
     async function loadAll() {
+      await ensureLzString();
+      if (useSupabase) await loadSupabase();
       let hash = window.location.hash.slice(1);
       const goHome = sessionStorage.getItem('publicViewGoHome');
       if (goHome) { sessionStorage.removeItem('publicViewGoHome'); hash = ''; }
       const startParam = goHome ? '' : getStartParam();
-      console.log('=== loadAll() ===');
       console.log('Full URL:', window.location.href);
       console.log('Start param received:', startParam);
       console.log('Start param type:', typeof startParam);
@@ -1689,54 +1374,25 @@
           categories = Array.isArray(categories) ? categories : [...DEFAULT_CATS];
         }
         
-        // Сохраняем загруженные данные в глобальные переменные
-        console.log('Данные загружены:', { 
-          wishlists: wishlists.length, 
-          wishes: wishes.length, 
-          categories: categories.length 
-        });
-        
         if (param.startsWith('url_')) {
-          const encodedUrl = param.slice(4); // Убираем "url_"
-          console.log('Encoded URL:', encodedUrl);
+          const encodedUrl = param.slice(4);
           const imageUrl = decodeImageUrl(encodedUrl);
-          console.log('Decoded Image URL:', imageUrl);
           if (imageUrl) {
-            console.log('Calling handleImageFromBot with URL...');
-            // Вызываем handleImageFromBot, но не ждем его завершения для рендеринга
+            isLoading = false;
             handleImageFromBot(null, imageUrl).catch(e => {
               console.error('Ошибка в handleImageFromBot:', e);
               currentView = 'main';
               render();
             });
-            // Рендерим интерфейс сразу после начала обработки
-            currentView = 'main';
-            render();
-            return;
-          } else {
-            console.error('✗ Failed to decode image URL');
             currentView = 'main';
             render();
             return;
           }
-        } else {
-          console.log('File ID mode, param:', param);
-          // Вызываем handleImageFromBot, но не ждем его завершения для рендеринга
-          handleImageFromBot(param).catch(e => {
-            console.error('Ошибка в handleImageFromBot:', e);
-            currentView = 'main';
-            render();
-          });
-          // Рендерим интерфейс сразу после начала обработки
-          currentView = 'main';
-          render();
-          return;
         }
-      } else if (startParam) {
-        console.log('✗ Start param does not start with img_:', startParam);
-        console.log('First 10 chars:', startParam.substring(0, 10));
-      } else {
-        console.log('No start param found');
+        isLoading = false;
+        currentView = 'main';
+        render();
+        return;
       }
       if (startParam && (startParam.startsWith('w_') || startParam.startsWith('i_'))) {
         hash = startParam.replace('_', '/');
@@ -1751,6 +1407,7 @@
             await addFollowedPublicWishlist(shortW[1]);
             wishes = []; categories = [...DEFAULT_CATS]; wishlists = [];
             history.replaceState(null, '', window.location.pathname + '#w/' + shortW[1]);
+            isLoading = false;
             return;
           }
         }
@@ -1767,6 +1424,7 @@
               const info = await fetchInviteWishlistFromSupabase(wlId);
               if (info) {
                 pendingInviteData = { wlId, ownerName: info.ownerName, wlName: info.wishlist?.name || 'Вишлист' };
+                isLoading = false;
                 return;
               }
             }
@@ -1777,6 +1435,7 @@
           publicViewData = data;
           if (useSupabase && sb) { await ensureUser(); await addFollowedPublicWishlist(data.wishlist.id); }
           wishes = []; categories = [...DEFAULT_CATS]; wishlists = [];
+          isLoading = false;
           return;
         }
         if (data?.type === 'invite' && data?.wishlist?.id) {
@@ -1786,6 +1445,7 @@
             wlName: data.wishlist.name || 'Вишлист',
             fullPayload: data
           };
+          isLoading = false;
           return;
         }
       }
@@ -1794,18 +1454,24 @@
         const userRes = await ensureUser();
         if (userRes.error) {
           window._supabaseLoadError = userRes.error.message || JSON.stringify(userRes.error);
+          isLoading = false;
           return;
         }
         const wlRes = await loadWishlistsFromSupabase();
         if (wlRes.error) {
           window._supabaseLoadError = wlRes.error.message || JSON.stringify(wlRes.error);
+          isLoading = false;
           return;
         }
         wishlists = Array.isArray(wlRes.data) ? wlRes.data : [];
-        wishes = await loadWishesFromSupabase(new Set(wishlists.map((w) => w.id)));
-        wishes = Array.isArray(wishes) ? wishes : [];
-        const cats = await loadCategoriesFromSupabase();
-        categories = Array.isArray(cats) && cats.length ? cats : [...DEFAULT_CATS];
+        const wlIdSet = new Set(wishlists.map((w) => w.id));
+        const [wishesRes, catsRes] = await Promise.all([
+          loadWishesFromSupabase(wlIdSet),
+          loadCategoriesFromSupabase()
+        ]);
+        wishes = Array.isArray(wishesRes) ? wishesRes : [];
+        const cats = Array.isArray(catsRes) ? catsRes : [];
+        categories = cats.length ? cats : [...DEFAULT_CATS];
       } else {
         wishes = loadWishesSync();
         wishes = Array.isArray(wishes) ? wishes : [];
@@ -1866,6 +1532,22 @@
 
     function renderMain() {
       const content = document.getElementById('content');
+      if (isLoading && currentView === 'main') {
+        content.innerHTML = `
+          <div class="main-buttons">
+            <div class="skeleton skeleton-btn" style="width:100%;margin-bottom:12px;"></div>
+            <div class="skeleton skeleton-btn" style="width:100%;margin-bottom:12px;"></div>
+            <div class="skeleton skeleton-btn" style="width:100%;"></div>
+          </div>
+          <h3 class="section-title">Недавно изменённые</h3>
+          <div class="recent-list">
+            <div class="skeleton skeleton-recent"></div>
+            <div class="skeleton skeleton-recent"></div>
+            <div class="skeleton skeleton-recent"></div>
+          </div>
+        `;
+        return;
+      }
       const visibleWishlists = wishlists.filter((wl) => {
         if (wl.privacy === 'private') return wl.ownerId === currentUserId;
         if (wl.privacy === 'shared') return canEditWishlist(wl);
@@ -3350,12 +3032,13 @@
       };
       try {
         const loadPromise = loadAll();
-        const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000));
+        const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 5000));
         await Promise.race([loadPromise, timeout]);
       } catch (e) {
         console.error('Load error:', e);
         fallbackToLocal();
       }
+      isLoading = false;
       currentView = 'main';
       if (window._supabaseLoadError) {
         const raw = String(window._supabaseLoadError);

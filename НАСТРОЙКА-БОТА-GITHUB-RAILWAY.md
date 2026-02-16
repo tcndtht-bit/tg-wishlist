@@ -20,7 +20,7 @@
 1. Зайди на **https://github.com**
 2. Нажми зелёную кнопку **New** (или **+** → **New repository**)
 3. Заполни:
-   - **Repository name:** `tg-wishlist-bot` (или любое имя)
+   - **Repository name:** `tg-wishlist-backend-bot` (или любое имя)
    - **Description:** `Telegram bot for wishlist app`
    - **Public** должен быть выбран
    - **НЕ ставь галочки** "Add a README file", "Add .gitignore", "Choose a license"
@@ -28,7 +28,7 @@
 
 ### Шаг 1.2. Скопировать URL репозитория
 
-После создания скопируй URL репозитория (будет что-то вроде `https://github.com/ТВОЙ_ЛОГИН/tg-wishlist-bot`)
+После создания скопируй URL репозитория (будет что-то вроде `https://github.com/ТВОЙ_ЛОГИН/tg-wishlist-backend-bot`)
 
 ---
 
@@ -36,9 +36,9 @@
 
 ### Шаг 2.1. Создать файл `bot.py`
 
-1. На странице репозитория нажми **Add file** → **Create new file**
-2. В поле имени файла введи: `bot.py`
-3. Скопируй этот код в редактор:
+1. На странице репозитория нажми на синюю ссылку **"creating a new file"** (или открой `/new/main` в URL)
+2. **Вверху страницы** в поле имени файла введи: `bot.py`
+3. **В большом текстовом поле ниже** скопируй этот код:
 
 ```python
 import telebot
@@ -111,37 +111,55 @@ if __name__ == '__main__':
     bot.polling(none_stop=True)
 ```
 
-4. Внизу страницы:
-   - **Commit message:** `Initial bot code`
-   - Нажми **Commit new file**
+4. **В правом верхнем углу** нажми зелёную кнопку **"Commit changes..."** (или **"Commit new file"**)
+5. Откроется окно/выпадающее меню:
+   - В поле **"Commit message"** (обязательное) введи: `Initial bot code`
+   - В поле **"Add an optional extended description"** можешь ничего не писать
+   - Нажми зелёную кнопку **"Commit changes"** (или **"Commit new file"**)
 
 ### Шаг 2.2. Создать файл `requirements.txt`
 
-1. Нажми **Add file** → **Create new file**
-2. Имя файла: `requirements.txt`
-3. Содержимое:
+1. Нажми на синюю ссылку **"creating a new file"** (или открой `/new/main` в URL)
+2. **Вверху** в поле имени файла введи: `requirements.txt`
+3. **В текстовом поле** введи:
 ```
 pyTelegramBotAPI==4.14.0
 ```
-4. **Commit message:** `Add requirements.txt`
-5. Нажми **Commit new file**
+4. **В правом верхнем углу** нажми зелёную кнопку **"Commit changes..."**
+5. В открывшемся окне в поле **"Commit message"** введи: `Add requirements.txt`
+6. Нажми **"Commit changes"**
 
 ### Шаг 2.3. Создать файл `Procfile` (для Railway)
 
-1. Нажми **Add file** → **Create new file**
-2. Имя файла: `Procfile` (с большой буквы P, без расширения!)
-3. Содержимое:
+1. Нажми на синюю ссылку **"creating a new file"** (или открой `/new/main` в URL)
+2. **Вверху** в поле имени файла введи: `Procfile` (с большой буквы P, без расширения!)
+3. **В текстовом поле** введи:
 ```
 worker: python bot.py
 ```
-4. **Commit message:** `Add Procfile for Railway`
-5. Нажми **Commit new file**
+4. **В правом верхнем углу** нажми зелёную кнопку **"Commit changes..."**
+5. В открывшемся окне в поле **"Commit message"** введи: `Add Procfile for Railway`
+6. Нажми **"Commit changes"**
 
-### Шаг 2.4. Создать файл `README.md` (опционально)
+### Шаг 2.4. Создать файл `runtime.txt` (ВАЖНО для Railway!)
 
-1. Нажми **Add file** → **Create new file**
-2. Имя файла: `README.md`
-3. Содержимое:
+1. Нажми на синюю ссылку **"creating a new file"** (или открой `/new/main` в URL)
+2. **Вверху** в поле имени файла введи: `runtime.txt`
+3. **В текстовом поле** введи:
+```
+python-3.11.0
+```
+4. **В правом верхнем углу** нажми зелёную кнопку **"Commit changes..."**
+5. В открывшемся окне в поле **"Commit message"** введи: `Add runtime.txt`
+6. Нажми **"Commit changes"**
+
+⚠️ **Важно:** Этот файл нужен, чтобы Railway понял, что это Python проект!
+
+### Шаг 2.5. Создать файл `README.md` (опционально)
+
+1. Нажми на синюю ссылку **"creating a new file"** (или открой `/new/main` в URL)
+2. **Вверху** в поле имени файла введи: `README.md`
+3. **В текстовом поле** введи:
 ```markdown
 # Telegram Wishlist Bot
 
@@ -152,8 +170,9 @@ worker: python bot.py
 - `BOT_TOKEN` - токен бота из BotFather
 - `WEB_APP_URL` - URL мини-приложения (опционально)
 ```
-4. **Commit message:** `Add README`
-5. Нажми **Commit new file**
+4. **В правом верхнем углу** нажми зелёную кнопку **"Commit changes..."**
+5. В открывшемся окне в поле **"Commit message"** введи: `Add README`
+6. Нажми **"Commit changes"**
 
 ---
 
@@ -171,7 +190,7 @@ worker: python bot.py
 1. Нажми **New Project**
 2. Выбери **Deploy from GitHub repo**
 3. Если репозиторий не виден — нажми **Configure GitHub App** и разреши доступ
-4. Найди свой репозиторий `tg-wishlist-bot` и нажми на него
+4. Найди свой репозиторий `tg-wishlist-backend-bot` и нажми на него
 
 ### Шаг 3.3. Настроить переменные окружения
 
@@ -192,12 +211,18 @@ worker: python bot.py
 
 ### Шаг 3.4. Настроить деплой
 
-1. Railway автоматически определит, что это Python проект
-2. Если не определил — открой **Settings** → **Deploy**
-3. Убедись, что:
-   - **Build Command:** пусто (или `pip install -r requirements.txt`)
+**ВАЖНО:** Убедись, что в репозитории НЕТ файла `Dockerfile`! Если есть — удали его, иначе Railway будет использовать Docker вместо Nixpacks.
+
+1. После подключения репозитория Railway попытается автоматически определить тип проекта
+2. Если видишь ошибку "Error creating build plan" или "pip: not found" — открой **Settings** → **Deploy**
+3. В настройках деплоя укажи:
+   - **Builder:** выбери **"Nixpacks"** (если есть выбор между Docker и Nixpacks)
+   - **Build Command:** **ОСТАВЬ ПУСТЫМ** (Railway сам определит для Python)
    - **Start Command:** `python bot.py`
    - **Root Directory:** `/` (корень)
+4. Сохрани настройки
+
+**Альтернатива:** Если ошибка остаётся, создай файл `railway.json` в репозитории (см. раздел "Устранение проблем" ниже)
 
 ### Шаг 3.5. Запустить деплой
 
@@ -261,6 +286,77 @@ worker: python bot.py
 1. В Railway нажми **Configure GitHub App**
 2. Разреши доступ ко всем репозиториям или выбери конкретный
 3. Попробуй создать проект заново
+
+---
+
+### Проблема: Ошибка "Error creating build plan with Railpack" или "pip: not found"
+
+**Это значит:** Railway не может определить тип проекта или использует Docker вместо Nixpacks.
+
+**ВАЖНО: Проверь, нет ли Dockerfile в репозитории!**
+
+Если в репозитории есть файл `Dockerfile` — Railway будет использовать его вместо Nixpacks. **Удали Dockerfile!**
+
+1. В GitHub репозитории найди файл `Dockerfile`
+2. Открой его и нажми **Delete file**
+3. Commit changes
+
+**Решение:**
+
+**Вариант 1: Добавить файл `runtime.txt` (если ещё не добавил)**
+
+1. В GitHub репозитории создай файл `runtime.txt`
+2. Содержимое: `python-3.11.0`
+3. Закоммить изменения
+4. Railway автоматически перезапустит деплой
+
+**Вариант 2: Настроить вручную в Railway**
+
+1. В Railway открой проект
+2. Нажми **Settings** → **Deploy**
+3. В секции **"Build & Deploy"**:
+   - **Builder:** выбери **"Nixpacks"** (если есть выбор между Docker и Nixpacks)
+   - **Build Command:** **ОСТАВЬ ПУСТЫМ** (Railway сам определит для Python)
+   - **Start Command:** `python bot.py`
+4. Сохрани изменения
+5. Нажми **Deployments** → **Redeploy**
+
+**Вариант 3: Создать файл `railway.json`**
+
+1. В GitHub репозитории создай файл `railway.json`
+2. Содержимое:
+```json
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "pip install -r requirements.txt"
+  },
+  "deploy": {
+    "startCommand": "python bot.py",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 10
+  }
+}
+```
+3. Закоммить изменения
+4. Railway перезапустит деплой
+
+**Вариант 4: Удалить railway.json и настроить через Settings**
+
+Если ошибка "pip: command not found" остаётся:
+
+1. Удали файл `railway.json` из репозитория (если создавал)
+2. В Railway открой **Settings** → **Deploy**
+3. В секции **"Build & Deploy"**:
+   - **Builder:** выбери **"Nixpacks"** (если есть выбор)
+   - **Build Command:** оставь пустым (Railway сам определит)
+   - **Start Command:** `python bot.py`
+4. Убедись, что в репозитории есть файлы:
+   - `bot.py`
+   - `requirements.txt`
+   - `runtime.txt` (с содержимым `python-3.11.0`)
+5. Сохрани и нажми **Redeploy**
 
 ---
 
