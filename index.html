@@ -1127,6 +1127,23 @@
           return;
         }
         
+        // CORS: если URL с api.telegram.org — загружаем через наш прокси
+        if (imageUrl.startsWith('https://api.telegram.org/')) {
+          try {
+            const proxyUrl = `/.netlify/functions/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+            const proxyRes = await fetch(proxyUrl);
+            if (!proxyRes.ok) throw new Error('Proxy failed');
+            const data = await proxyRes.json();
+            if (data.base64) imageUrl = data.base64;
+          } catch (e) {
+            console.error('Ошибка прокси изображения:', e);
+            safeShowAlert('Не удалось загрузить изображение.');
+            currentView = 'main';
+            render();
+            return;
+          }
+        }
+        
         // Анализируем изображение с таймаутом (30 секунд на каждый API)
         let extracted;
         try {
