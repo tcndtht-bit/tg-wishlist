@@ -3,10 +3,7 @@ from telebot import types
 import urllib.parse
 import os
 
-# Токен бота из переменной окружения (Railway установит его)
 BOT_TOKEN = os.getenv('BOT_TOKEN')
-
-# URL мини-приложения из переменной окружения (или укажи напрямую)
 WEB_APP_URL = os.getenv('WEB_APP_URL', 'https://your-app.netlify.app')
 
 if not BOT_TOKEN:
@@ -20,29 +17,26 @@ def start(message):
     bot.reply_to(message, 
         "Привет! 👋\n\n"
         "Отправь мне фотографию товара, и я помогу создать карточку желания.\n\n"
-        "Просто отправь фото — я открою мини-приложение для анализа."
-    )
+        "Просто отправь фото — я открою мини-приложение для анализа.")
 
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
     try:
-        # Получаем самое большое фото
         photo = message.photo[-1]
         file_id = photo.file_id
         
-        # Получаем информацию о файле
         file_info = bot.get_file(file_id)
-        file_url = f"https://api.telegram.org/file/bot{bot.token}/{file_info.file_path}"
+        file_path = file_info.file_path
         
-        # Кодируем URL для передачи в мини-приложение
+        file_url = f"https://api.telegram.org/file/bot{BOT_TOKEN}/{file_path}"
+        
         encoded_url = urllib.parse.quote(file_url, safe='')
         start_param = f"img_url_{encoded_url}"
         
-        # Создаем кнопку для открытия мини-приложения
         keyboard = types.InlineKeyboardMarkup()
         button = types.InlineKeyboardButton(
             text="📸 Анализировать изображение",
-            web_app=types.WebAppInfo(url=f"{WEB_APP_URL}?startapp={start_param}")
+            web_app=types.WebAppInfo(url=f"{WEB_APP_URL}?start_param={start_param}")
         )
         keyboard.add(button)
         
@@ -52,8 +46,9 @@ def handle_photo(message):
             reply_markup=keyboard
         )
     except Exception as e:
-        print(f"Ошибка при обработке фото: {e}")
-        bot.reply_to(message, "Произошла ошибка. Попробуй отправить фото еще раз.")
+        error_msg = str(e)
+        print(f"Ошибка при обработке фото: {error_msg}")
+        bot.reply_to(message, f"Произошла ошибка: {error_msg}. Попробуй отправить фото еще раз.")
 
 @bot.message_handler(func=lambda message: True)
 def handle_all(message):
@@ -61,7 +56,6 @@ def handle_all(message):
         "Отправь мне фотографию товара, и я помогу создать карточку желания! 📸"
     )
 
-# Запускаем бота
 if __name__ == '__main__':
     print("Бот запущен!")
     print(f"WEB_APP_URL: {WEB_APP_URL}")
