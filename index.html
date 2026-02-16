@@ -7,6 +7,7 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     :root {
       --bg-primary: #1a1a2e;
@@ -566,12 +567,26 @@
     // Укажи username бота (без @) и short_name Mini App из BotFather
     const TELEGRAM_BOT = 'wantthat_bot';
     const TELEGRAM_APP = 'wantthat';
-    // OpenAI API ключ для анализа изображений (получи на https://platform.openai.com/api-keys)
-    // ВАЖНО: Для продакшена используй переменные окружения или серверный прокси для безопасности
-    const OPENAI_API_KEY = ''; // Укажи свой ключ здесь или через sessionStorage.setItem('openai_key', '...')
+    // API ключи для анализа изображений (выбери один вариант):
+    // ВАРИАНТ 1: Tesseract.js (БЕСПЛАТНО, работает в браузере, доступен в Беларуси!)
+    // Не требует ключа - работает сразу! Рекомендуется для Беларуси/России.
+    
+    // ВАРИАНТ 2: Google Gemini (БЕСПЛАТНО до 15 запросов/мин, может быть заблокирован)
+    const GEMINI_API_KEY = ''; // Получи на https://aistudio.google.com/app/apikey
+    // sessionStorage.setItem('gemini_key', '...')
+    
+    // ВАРИАНТ 3: OCRAPI.cloud (БЕСПЛАТНО 250 запросов/месяц)
+    const OCRAPI_KEY = ''; // Получи на https://ocr.space/ocrapi
+    // sessionStorage.setItem('ocrapi_key', '...')
+    
+    // ВАРИАНТ 4: OpenAI (платный, ~$0.01-0.03 за изображение)
+    const OPENAI_API_KEY = ''; // sessionStorage.setItem('openai_key', '...')
     
     // Токен Telegram бота для получения файлов (опционально, если бот передает URL напрямую - не нужен)
     // sessionStorage.setItem('bot_token', 'YOUR_BOT_TOKEN');
+    
+    // Какой API использовать (по умолчанию пробует бесплатные сначала, Tesseract работает везде!)
+    const CV_API_PRIORITY = ['tesseract', 'gemini', 'ocrapi', 'openai']; // Tesseract первый - работает в Беларуси!
     
     // ИНСТРУКЦИЯ ДЛЯ БОТА:
     // Когда пользователь отправляет изображение в бота, бот должен:
@@ -700,12 +715,185 @@
       }
     }
 
-    async function analyzeImageWithCV(imageUrl) {
-      const apiKey = OPENAI_API_KEY || sessionStorage.getItem('openai_key');
-      if (!apiKey) {
-        tg?.showAlert?.('Не указан OpenAI API ключ. Обратитесь к администратору.');
+    async function analyzeImageWithTesseract(imageUrl) {
+      if (typeof Tesseract === 'undefined') {
+        console.error('Tesseract.js not loaded');
         return null;
       }
+      try {
+        tg?.showAlert?.('Распознаю текст... (это может занять 10-20 секунд)');
+        let imageData;
+        if (imageUrl.startsWith('data:')) {
+          imageData = imageUrl;
+        } else {
+          const response = await fetch(imageUrl);
+          const blob = await response.blob();
+          imageData = await new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.readAsDataURL(blob);
+          });
+        }
+        const { data: { text } } = await Tesseract.recognize(imageData, 'rus+eng', {
+          logger: (m) => {
+            if (m.status === 'recognizing text') {
+              const progress = Math.round(m.progress * 100);
+              tg?.showAlert?.(`Распознаю текст... ${progress}%`);
+            }
+          }
+        });
+        if (!text || text.trim().length < 5) return null;
+        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        let name = null;
+        let price = null;
+        let currency = null;
+        let size = null;
+        const fullText = text.toLowerCase();
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          const lineLower = line.toLowerCase();
+          if (!name && line.length > 5 && line.length < 100) {
+            const skipKeywords = ['цена', 'price', 'стоимость', 'cost', 'размер', 'size', 'руб', 'рублей', 'бел', 'byn', 'usd', 'eur'];
+            const isSkip = skipKeywords.some(k => lineLower.includes(k)) || /^\d+[\s,\.]?\d*$/.test(line);
+            if (!isSkip && !lineLower.match(/^[€$₽Br₸\s\d,\.]+$/)) {
+              name = line.trim();
+            }
+          }
+          const priceWithLabel = line.match(/(?:цена|price|стоимость|cost)[\s:]*([0-9\s,\.]+)/i);
+          const priceOnly = line.match(/([0-9]{2,7}(?:\s|,|\.)[0-9]{0,2}|[0-9]{3,7})/);
+          const priceMatch = priceWithLabel || priceOnly;
+          if (priceMatch && !price) {
+            const priceStr = priceMatch[1].replace(/\s/g, '').replace(',', '');
+            const priceNum = parseInt(priceStr);
+            if (priceNum >= 10 && priceNum <= 9999999) {
+              price = priceNum;
+            }
+          }
+          const currencyMatch = line.match(/([€$₽Br₸])/) || (lineLower.match(/руб|бел|byr|byn/i) ? '₽' : null) || (lineLower.match(/usd|долл/i) ? '$' : null) || (lineLower.match(/eur|евр/i) ? '€' : null);
+          if (currencyMatch && !currency) {
+            currency = typeof currencyMatch === 'string' ? currencyMatch : currencyMatch[1];
+          }
+          const sizeWithLabel = line.match(/(?:размер|size)[\s:]*([MXLS\d]+)/i);
+          const sizeOnly = line.match(/\b([MXLS]{1,3}|\d{2,3})\b/);
+          const sizeMatch = sizeWithLabel || sizeOnly;
+          if (sizeMatch && !size) {
+            const sizeVal = (sizeMatch[1] || sizeMatch[0]).trim();
+            if (['m', 'l', 'xl', 's', 'xxl', 'xs', 'xxs', 'xxxl'].includes(sizeVal.toLowerCase()) || /^\d{2,3}$/.test(sizeVal)) {
+              size = sizeVal;
+            }
+          }
+        }
+        if (!name && lines.length > 0) {
+          const firstLine = lines[0];
+          if (firstLine.length > 3 && firstLine.length < 100 && !/^\d+/.test(firstLine)) {
+            name = firstLine.trim();
+          }
+        }
+        return { name, price, currency, size };
+      } catch (e) {
+        console.error('Error analyzing with Tesseract:', e);
+        return null;
+      }
+    }
+
+    async function analyzeImageWithGemini(imageUrl) {
+      const apiKey = GEMINI_API_KEY || sessionStorage.getItem('gemini_key');
+      if (!apiKey) return null;
+      try {
+        const imageBase64 = imageUrl.startsWith('data:') ? imageUrl.split(',')[1] : await fetch(imageUrl).then(r => r.blob()).then(blob => new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result.split(',')[1]);
+          reader.readAsDataURL(blob);
+        }));
+        const mimeType = imageUrl.startsWith('data:') ? imageUrl.match(/data:([^;]+)/)?.[1] || 'image/jpeg' : 'image/jpeg';
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [
+                {
+                  text: `Проанализируй это изображение товара и извлеки информацию в формате JSON:
+{
+  "name": "название товара (точное название продукта)",
+  "price": число (только цифры, без валюты и пробелов),
+  "currency": "символ валюты (€, $, ₽, Br, ₸) или null если не найдено",
+  "size": "размер (M, L, XL, 42, 43, S, XXL и т.д.) или null если не найдено"
+}
+
+Важно:
+- name: точное название товара с изображения
+- price: только число (например, 1299, не "1 299" или "1,299")
+- currency: только символ валюты, если виден на изображении
+- size: размер одежды/обуви, если указан
+
+Если параметра нет на изображении, верни null для него.
+Отвечай ТОЛЬКО валидным JSON, без дополнительного текста или объяснений.`
+                },
+                {
+                  inlineData: {
+                    mimeType: mimeType,
+                    data: imageBase64
+                  }
+                }
+              ]
+            }]
+          })
+        });
+        const data = await response.json();
+        const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) return null;
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) return null;
+        return JSON.parse(jsonMatch[0]);
+      } catch (e) {
+        console.error('Error analyzing with Gemini:', e);
+        return null;
+      }
+    }
+
+    async function analyzeImageWithOCRAPI(imageUrl) {
+      const apiKey = OCRAPI_KEY || sessionStorage.getItem('ocrapi_key');
+      if (!apiKey) return null;
+      try {
+        const formData = new FormData();
+        if (imageUrl.startsWith('data:')) {
+          const blob = await fetch(imageUrl).then(r => r.blob());
+          formData.append('file', blob, 'image.jpg');
+        } else {
+          const response = await fetch(imageUrl);
+          const blob = await response.blob();
+          formData.append('file', blob, 'image.jpg');
+        }
+        formData.append('language', 'rus+eng');
+        formData.append('isOverlayRequired', 'false');
+        const ocrResponse = await fetch('https://api.ocr.space/parse/image', {
+          method: 'POST',
+          headers: { 'apikey': apiKey },
+          body: formData
+        });
+        const ocrData = await ocrResponse.json();
+        const extractedText = ocrData.ParsedResults?.[0]?.ParsedText || '';
+        if (!extractedText) return null;
+        const nameMatch = extractedText.match(/(?:название|name|товар|product)[\s:]*([^\n\r]+)/i);
+        const priceMatch = extractedText.match(/(?:цена|price|стоимость)[\s:]*([0-9\s,\.]+)/i);
+        const currencyMatch = extractedText.match(/([€$₽Br₸])/);
+        const sizeMatch = extractedText.match(/(?:размер|size)[\s:]*([MXLS\d]+)/i);
+        return {
+          name: nameMatch ? nameMatch[1].trim() : null,
+          price: priceMatch ? parseInt(priceMatch[1].replace(/\s/g, '').replace(',', '.')) : null,
+          currency: currencyMatch ? currencyMatch[1] : null,
+          size: sizeMatch ? sizeMatch[1].trim() : null
+        };
+      } catch (e) {
+        console.error('Error analyzing with OCRAPI:', e);
+        return null;
+      }
+    }
+
+    async function analyzeImageWithOpenAI(imageUrl) {
+      const apiKey = OPENAI_API_KEY || sessionStorage.getItem('openai_key');
+      if (!apiKey) return null;
       try {
         const response = await fetch('https://api.openai.com/v1/chat/completions', {
           method: 'POST',
@@ -753,9 +941,28 @@
         if (!jsonMatch) return null;
         return JSON.parse(jsonMatch[0]);
       } catch (e) {
-        console.error('Error analyzing image:', e);
+        console.error('Error analyzing with OpenAI:', e);
         return null;
       }
+    }
+
+    async function analyzeImageWithCV(imageUrl) {
+      const priority = CV_API_PRIORITY || ['tesseract', 'gemini', 'ocrapi', 'openai'];
+      for (const api of priority) {
+        let result = null;
+        if (api === 'tesseract') {
+          result = await analyzeImageWithTesseract(imageUrl);
+        } else if (api === 'gemini') {
+          result = await analyzeImageWithGemini(imageUrl);
+        } else if (api === 'openai') {
+          result = await analyzeImageWithOpenAI(imageUrl);
+        } else if (api === 'ocrapi') {
+          result = await analyzeImageWithOCRAPI(imageUrl);
+        }
+        if (result) return result;
+      }
+      tg?.showAlert?.('Не удалось проанализировать изображение. Попробуй другое фото или проверь настройки API.');
+      return null;
     }
 
     async function handleImageFromBot(fileId, imageUrl = null) {
