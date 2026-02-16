@@ -966,6 +966,7 @@
     }
 
     async function handleImageFromBot(fileId, imageUrl = null) {
+      console.log('handleImageFromBot called:', { fileId, imageUrl });
       tg?.showAlert?.('Анализирую изображение...');
       await ensureUser();
       if (useSupabase && sb) {
@@ -1157,10 +1158,25 @@
     }
 
     function getStartParam() {
-      if (_savedStartParam) return _savedStartParam;
+      if (_savedStartParam) {
+        console.log('Using saved start param:', _savedStartParam);
+        return _savedStartParam;
+      }
       const h = window.location.hash.slice(1);
-      if (h) { try { const sp = new URLSearchParams(h).get('tgWebAppStartParam'); if (sp) return sp; } catch (_) {} }
-      return tg?.initDataUnsafe?.start_param || '';
+      if (h) {
+        try {
+          const sp = new URLSearchParams(h).get('tgWebAppStartParam');
+          if (sp) {
+            console.log('Start param from hash:', sp);
+            return sp;
+          }
+        } catch (e) {
+          console.error('Error parsing hash:', e);
+        }
+      }
+      const tgParam = tg?.initDataUnsafe?.start_param || '';
+      console.log('Start param from Telegram:', tgParam);
+      return tgParam;
     }
 
     async function loadAll() {
@@ -1168,15 +1184,22 @@
       const goHome = sessionStorage.getItem('publicViewGoHome');
       if (goHome) { sessionStorage.removeItem('publicViewGoHome'); hash = ''; }
       const startParam = goHome ? '' : getStartParam();
+      console.log('Start param received:', startParam);
       if (startParam && startParam.startsWith('img_')) {
+        console.log('Processing image from bot...');
         const param = startParam.slice(4);
         if (param.startsWith('url_')) {
           const imageUrl = decodeImageUrl(param.slice(4));
+          console.log('Image URL:', imageUrl);
           if (imageUrl) await handleImageFromBot(null, imageUrl);
+          else console.error('Failed to decode image URL');
         } else {
+          console.log('File ID:', param);
           await handleImageFromBot(param);
         }
         return;
+      } else if (startParam) {
+        console.log('Start param does not start with img_:', startParam);
       }
       if (startParam && (startParam.startsWith('w_') || startParam.startsWith('i_'))) {
         hash = startParam.replace('_', '/');
