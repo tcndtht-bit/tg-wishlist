@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Вишлист</title>
+  <link rel="icon" href="data:,">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
@@ -759,6 +760,7 @@
       }
       try {
         console.log('Начинаю анализ через Tesseract...');
+        // Показываем начальное сообщение один раз
         tg?.showAlert?.('Распознаю текст через Tesseract... (макс 30 сек)');
         let imageData;
         if (imageUrl.startsWith('data:')) {
@@ -772,11 +774,25 @@
             reader.readAsDataURL(blob);
           });
         }
+        
+        // Не обновляем popup во время распознавания - только логируем в консоль
+        // Telegram Web App не позволяет открывать новый popup пока открыт предыдущий
         const { data: { text } } = await Tesseract.recognize(imageData, 'rus+eng', {
           logger: (m) => {
             if (m.status === 'recognizing text') {
               const progress = Math.round(m.progress * 100);
-              tg?.showAlert?.(`Распознаю текст... ${progress}%`);
+              // Логируем в консоль вместо обновления popup
+              console.log(`Tesseract прогресс: ${progress}%`);
+              // Обновляем сообщение только на ключевых этапах (25%, 50%, 75%, 100%)
+              // и только если popup не открыт (проверяем через try-catch)
+              if (progress === 25 || progress === 50 || progress === 75 || progress === 100) {
+                try {
+                  tg?.showAlert?.(`Tesseract: ${progress}%`);
+                } catch (e) {
+                  // Игнорируем ошибку если popup уже открыт
+                  console.log('Не удалось обновить popup (уже открыт)');
+                }
+              }
             }
           }
         });
@@ -987,6 +1003,16 @@
     async function analyzeImageWithCV(imageUrl, timeoutMs = 30000) {
       const priority = CV_API_PRIORITY || ['tesseract', 'gemini', 'ocrapi', 'openai'];
       
+      // Функция для безопасного показа alert (с обработкой ошибки "popup already opened")
+      const safeShowAlert = (message) => {
+        try {
+          tg?.showAlert?.(message);
+        } catch (e) {
+          // Игнорируем ошибку если popup уже открыт, просто логируем
+          console.log(`Не удалось показать alert (popup уже открыт): ${message}`);
+        }
+      };
+      
       for (const api of priority) {
         let result = null;
         let timeoutId = null;
@@ -994,7 +1020,7 @@
         
         try {
           console.log(`Пробую анализ через ${api}...`);
-          tg?.showAlert?.(`Анализ через ${api}... (макс ${timeoutMs/1000} сек)`);
+          safeShowAlert(`Анализ через ${api}... (макс ${timeoutMs/1000} сек)`);
           
           // Создаем промис с таймаутом для каждой функции анализа
           let analysisPromise;
@@ -1035,7 +1061,7 @@
           
           if (result) {
             console.log(`✓ Анализ успешен через ${api}`);
-            tg?.showAlert?.(`✓ Готово!`);
+            safeShowAlert(`✓ Готово!`);
             return result;
           }
         } catch (e) {
@@ -1050,7 +1076,9 @@
           
           // Показываем ошибку пользователю только если это таймаут
           if (errorMsg.includes('Таймаут')) {
-            tg?.showAlert?.(`Таймаут ${api} (${timeoutMs/1000} сек). Пробую следующий API...`);
+            safeShowAlert(`Таймаут ${api} (${timeoutMs/1000} сек). Пробую следующий API...`);
+            // Небольшая задержка чтобы пользователь увидел сообщение
+            await new Promise(resolve => setTimeout(resolve, 1000));
           }
           
           // Продолжаем пробовать следующий API
@@ -1058,7 +1086,9 @@
         }
       }
       
-      tg?.showAlert?.('Не удалось проанализировать изображение. Попробуй другое фото или проверь настройки API.');
+      // Показываем финальное сообщение об ошибке
+      safeShowAlert('Не удалось проанализировать изображение. Попробуй другое фото или проверь настройки API.');
+      console.error('Все API анализа изображений не сработали');
       return null;
     }
 
@@ -1066,8 +1096,13 @@
       console.log('handleImageFromBot called:', { fileId, imageUrl });
       
       try {
-        // Показываем начальное сообщение (будет обновляться в analyzeImageWithCV)
-        tg?.showAlert?.('Начинаю анализ изображения...');
+        // Показываем начальное сообщение один раз
+        // Используем try-catch чтобы не упасть если popup уже открыт
+        try {
+          tg?.showAlert?.('Начинаю анализ изображения...');
+        } catch (e) {
+          console.log('Не удалось показать начальный alert:', e);
+        }
         
         // Убеждаемся, что пользователь авторизован (данные уже загружены в loadAll)
         await ensureUser();
