@@ -1364,7 +1364,7 @@
         // CORS: если URL с api.telegram.org — загружаем через наш прокси
         if (imageUrl.startsWith('https://api.telegram.org/')) {
           try {
-            const proxyUrl = `/.netlify/functions/image-proxy?url=${encodeURIComponent(imageUrl)}`;
+            const proxyUrl = `/image-proxy?url=${encodeURIComponent(imageUrl)}`;
             const proxyRes = await fetch(proxyUrl);
             if (!proxyRes.ok) throw new Error('Proxy failed');
             const data = await proxyRes.json();
