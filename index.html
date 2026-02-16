@@ -333,6 +333,18 @@
     @keyframes skeleton { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
     .card { content-visibility: auto; contain-intrinsic-size: auto 280px; }
     .wl-item { content-visibility: auto; contain-intrinsic-size: auto 72px; }
+    .analysis-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 2000;
+      display: none; align-items: center; justify-content: center; flex-direction: column; gap: 16px;
+    }
+    .analysis-overlay.visible { display: flex; }
+    .analysis-spinner {
+      width: 48px; height: 48px; border: 3px solid var(--border);
+      border-top-color: var(--accent); border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    .analysis-overlay span { color: var(--text-primary); font-size: 1rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
     @media (min-width: 480px) {
       .modal { border-radius: 24px; margin: auto 16px 16px; }
     }
@@ -354,6 +366,11 @@
       <h3 class="section-title">Недавно изменённые</h3>
       <div class="recent-list"><p style="color:var(--text-secondary);font-size:0.9rem;">Нет вишлистов</p></div>
     </div>
+  </div>
+
+  <div class="analysis-overlay" id="analysisOverlay">
+    <div class="analysis-spinner"></div>
+    <span id="analysisOverlayText">Анализируем изображение…</span>
   </div>
 
   <!-- Wish modal -->
@@ -595,7 +612,7 @@
     // sessionStorage.setItem('bot_token', 'YOUR_BOT_TOKEN');
     
     // Какой API использовать (по умолчанию пробует бесплатные сначала, Tesseract работает везде!)
-    const CV_API_PRIORITY = ['openrouter', 'groq', 'gemini']; // OpenRouter → Groq → Gemini
+    const CV_API_PRIORITY = ['groq', 'openrouter', 'gemini'];
     const CV_VISION_PROMPT = `Проанализируй изображение и извлеки информацию о товаре. Верни ТОЛЬКО валидный JSON без пояснений:
 {"name":"строка или N/A","price":число или null,"currency":"строка или null","size":"строка или null"}
 
@@ -834,7 +851,7 @@
       }
     }
 
-    async function prepareImageForVision(imageUrl) {
+    async function prepareImageForVision(imageUrl, maxSize = 1280) {
       let url = imageUrl.startsWith('data:') ? imageUrl : null;
       if (!url) {
         const blob = await fetch(imageUrl).then(r => r.blob());
@@ -842,14 +859,16 @@
       }
       let mime = (url.match(/data:([^;]+)/) || [])[1] || 'image/jpeg';
       if (!/^image\/(jpeg|png|webp|gif)$/i.test(mime)) mime = 'image/jpeg';
-      return { url: url.replace(/^data:[^;]+;/, `data:${mime};`) };
+      url = url.replace(/^data:[^;]+;/, `data:${mime};`);
+      const resized = await resizeImageBase64(url, maxSize, 0.85);
+      return { url: resized };
     }
 
-    async function analyzeImageWithGroq(imageUrl) {
+    async function analyzeImageWithGroq(imageUrl, alreadyPrepared = false) {
       const apiKey = GROQ_API_KEY || sessionStorage.getItem('groq_key');
       if (!apiKey) return null;
       try {
-        const { url } = await prepareImageForVision(imageUrl);
+        const url = alreadyPrepared ? imageUrl : (await prepareImageForVision(imageUrl)).url;
         const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
@@ -877,13 +896,13 @@
       }
     }
 
-    async function analyzeImageWithOpenRouter(imageUrl) {
+    async function analyzeImageWithOpenRouter(imageUrl, alreadyPrepared = false) {
       const apiKey = OPENROUTER_API_KEY || sessionStorage.getItem('openrouter_key');
       if (!apiKey) return null;
+      const url = alreadyPrepared ? imageUrl : (await prepareImageForVision(imageUrl)).url;
       const models = ['google/gemma-3-27b-it:free', 'nvidia/nemotron-nano-12b-v2-vl:free', 'qwen/qwen2.5-vl-3b-instruct:free'];
       for (const model of models) {
         try {
-          const { url } = await prepareImageForVision(imageUrl);
           const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
@@ -933,7 +952,8 @@
     }
 
     async function analyzeImageWithCV(imageUrl, timeoutMs = 12000) {
-      const priority = CV_API_PRIORITY || ['openrouter', 'groq', 'gemini'];
+      const priority = CV_API_PRIORITY || ['groq', 'openrouter', 'gemini'];
+      const { url: preparedUrl } = await prepareImageForVision(imageUrl);
       
       for (const api of priority) {
         let result = null;
@@ -941,12 +961,10 @@
         let analysisAborted = false;
         
         try {
-          console.log(`Пробую анализ через ${api}...`);
-          
           let analysisPromise;
-          if (api === 'gemini') analysisPromise = analyzeImageWithGemini(imageUrl);
-          else if (api === 'groq') analysisPromise = analyzeImageWithGroq(imageUrl);
-          else if (api === 'openrouter') analysisPromise = analyzeImageWithOpenRouter(imageUrl);
+          if (api === 'gemini') analysisPromise = analyzeImageWithGemini(preparedUrl, true);
+          else if (api === 'groq') analysisPromise = analyzeImageWithGroq(preparedUrl, true);
+          else if (api === 'openrouter') analysisPromise = analyzeImageWithOpenRouter(preparedUrl, true);
           else continue;
           
           // Создаем промис с таймаутом
@@ -1055,13 +1073,14 @@
           }
         }
         
-        // Анализируем изображение с таймаутом (30 секунд на каждый API)
-        // Не показываем popup во время анализа — он не закрывается автоматически
+        const overlay = document.getElementById('analysisOverlay');
+        const overlayText = document.getElementById('analysisOverlayText');
+        if (overlay) { overlay.classList.add('visible'); overlayText && (overlayText.textContent = 'Анализируем изображение…'); }
         let extracted;
         try {
           extracted = await analyzeImageWithCV(imageUrl, 12000);
+          if (overlay) overlay.classList.remove('visible');
           
-          // Если анализ не дал результата, показываем сообщение
           if (!extracted) {
             safeShowAlert('Не удалось проанализировать изображение. Попробуй другое фото или открой форму вручную.');
             currentView = 'main';
@@ -1069,10 +1088,11 @@
             return;
           }
         } catch (e) {
+          if (overlay) overlay.classList.remove('visible');
           console.error('Ошибка анализа изображения:', e);
           const errorMsg = e.message || String(e);
           if (errorMsg.includes('Таймаут')) {
-            safeShowAlert('Анализ занял слишком много времени (>30 сек). Попробуй другое фото или открой форму вручную.');
+            safeShowAlert('Анализ занял слишком много времени. Попробуй другое фото или открой форму вручную.');
           } else {
             safeShowAlert('Не удалось проанализировать изображение. Попробуй другое фото или открой форму вручную.');
           }
@@ -1106,6 +1126,7 @@
         openWishModalFromImage(imageBase64, extracted);
         
       } catch (e) {
+        document.getElementById('analysisOverlay')?.classList.remove('visible');
         console.error('Критическая ошибка в handleImageFromBot:', e);
         safeShowAlert('Произошла ошибка при обработке изображения. Попробуй еще раз.');
         currentView = 'main';
@@ -1352,42 +1373,63 @@
       console.log('Start param length:', startParam?.length);
       
       if (startParam && startParam.startsWith('img_')) {
-        console.log('✓ Processing image from bot...');
-        const param = startParam.slice(4); // Убираем "img_"
-        console.log('Param after removing "img_":', param);
-        
-        // Загружаем данные перед обработкой изображения
-        await ensureUser();
-        if (useSupabase && sb) {
-          const wlRes = await loadWishlistsFromSupabase();
-          if (wlRes.data) wishlists = wlRes.data;
-          wishes = await loadWishesFromSupabase(new Set(wishlists.map((w) => w.id)));
-          wishes = Array.isArray(wishes) ? wishes : [];
-          const cats = await loadCategoriesFromSupabase();
-          categories = Array.isArray(cats) && cats.length ? cats : [...DEFAULT_CATS];
-        } else {
-          wishes = loadWishesSync();
-          wishes = Array.isArray(wishes) ? wishes : [];
-          try { wishlists = (JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
-          wishlists = Array.isArray(wishlists) ? wishlists : [];
-          try { const raw = safeGetItem(CATS_KEY); categories = raw ? JSON.parse(raw) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
-          categories = Array.isArray(categories) ? categories : [...DEFAULT_CATS];
+        const param = startParam.slice(4);
+        if (!param.startsWith('url_')) {
+          isLoading = false;
+          currentView = 'main';
+          render();
+          return;
         }
-        
-        if (param.startsWith('url_')) {
-          const encodedUrl = param.slice(4);
-          const imageUrl = decodeImageUrl(encodedUrl);
-          if (imageUrl) {
-            isLoading = false;
-            handleImageFromBot(null, imageUrl).catch(e => {
-              console.error('Ошибка в handleImageFromBot:', e);
-              currentView = 'main';
-              render();
-            });
+        const telegramUrl = decodeImageUrl(param.slice(4));
+        if (!telegramUrl) {
+          isLoading = false;
+          currentView = 'main';
+          render();
+          return;
+        }
+        const loadData = async () => {
+          await ensureUser();
+          if (useSupabase && sb) {
+            const wlRes = await loadWishlistsFromSupabase();
+            if (wlRes.data) wishlists = wlRes.data;
+            wishes = await loadWishesFromSupabase(new Set(wishlists.map((w) => w.id)));
+            wishes = Array.isArray(wishes) ? wishes : [];
+            const cats = await loadCategoriesFromSupabase();
+            categories = Array.isArray(cats) && cats.length ? cats : [...DEFAULT_CATS];
+          } else {
+            wishes = loadWishesSync();
+            wishes = Array.isArray(wishes) ? wishes : [];
+            try { wishlists = (JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
+            wishlists = Array.isArray(wishlists) ? wishlists : [];
+            try { const raw = safeGetItem(CATS_KEY); categories = raw ? JSON.parse(raw) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
+            categories = Array.isArray(categories) ? categories : [...DEFAULT_CATS];
+          }
+        };
+        const fetchProxy = () =>
+          fetch(`/image-proxy?url=${encodeURIComponent(telegramUrl)}`)
+            .then(r => { if (!r.ok) throw new Error('Proxy failed'); return r.json(); })
+            .then(d => d.base64 || null);
+        let imageUrl;
+        try {
+          [imageUrl] = await Promise.all([fetchProxy(), loadData()]);
+        } catch (e) {
+          console.error('Ошибка загрузки:', e);
+          isLoading = false;
+          safeShowAlert('Не удалось загрузить изображение.');
+          currentView = 'main';
+          render();
+          return;
+        }
+        if (imageUrl) {
+          isLoading = false;
+          handleImageFromBot(null, imageUrl).catch(e => {
+            console.error('Ошибка в handleImageFromBot:', e);
             currentView = 'main';
             render();
-            return;
-          }
+          });
+          currentView = 'main';
+          render();
+          return;
         }
         isLoading = false;
         currentView = 'main';
@@ -1574,6 +1616,12 @@
               </div>
             `).join('')}
         </div>
+        <div style="margin-top:24px;">
+          <button type="button" class="btn btn-secondary" id="addByPhotoBtn" style="width:100%;">
+            📸 Добавить желание по фото
+          </button>
+          <input type="file" id="addByPhotoInput" accept="image/*" style="display:none;">
+        </div>
       `;
 
       content.querySelectorAll('[data-nav]').forEach((b) => {
@@ -1582,6 +1630,34 @@
       content.querySelectorAll('.recent-item').forEach((el) => {
         el.addEventListener('click', () => navigateTo('wishlist', el.dataset.wlId));
       });
+      const addByPhotoBtn = document.getElementById('addByPhotoBtn');
+      const addByPhotoInput = document.getElementById('addByPhotoInput');
+      if (addByPhotoBtn && addByPhotoInput) {
+        addByPhotoBtn.addEventListener('click', () => addByPhotoInput.click());
+        addByPhotoInput.addEventListener('change', async (e) => {
+          const file = e.target.files?.[0];
+          e.target.value = '';
+          if (!file?.type?.startsWith('image/')) return;
+          const overlay = document.getElementById('analysisOverlay');
+          const overlayText = document.getElementById('analysisOverlayText');
+          if (overlay) { overlay.classList.add('visible'); overlayText && (overlayText.textContent = 'Анализируем изображение…'); }
+          try {
+            let imageBase64 = await fileToBase64(file);
+            imageBase64 = await resizeImageBase64(imageBase64, 1280, 0.85);
+            const extracted = await analyzeImageWithCV(imageBase64, 12000);
+            if (overlay) overlay.classList.remove('visible');
+            if (extracted) {
+              openWishModalFromImage(imageBase64, extracted);
+            } else {
+              safeShowAlert('Не удалось проанализировать изображение. Попробуй другое фото или добавь желание вручную.');
+            }
+          } catch (err) {
+            if (overlay) overlay.classList.remove('visible');
+            console.error('Ошибка анализа по фото:', err);
+            safeShowAlert('Произошла ошибка при анализе. Попробуй ещё раз.');
+          }
+        });
+      }
     }
 
     function canEditWishlist(wl) {
