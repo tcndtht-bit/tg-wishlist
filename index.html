@@ -976,8 +976,8 @@
 
 2. price и currency — найди связку ЧИСЛО (возможно с десятичными) + ВАЛЮТА. Валюта может быть до или после числа. Примеры: BYN, RUB, USD, EUR, KZT; символы $, ₽, ₸, €, Br; разговорные бун, руб, тг, долл, евр. Если нет — price: null, currency: null.
 
-3. size — найди размер вещи. Обувь: двузначное 25–50 (EU) или 4–20 (US, если на изображении есть маркировка US/eu); одежда: XXS, XS, S, M, L, XL, XXL. Если нет — null.`;
-        const models = ['gemini-1.5-flash', 'gemini-1.5-pro']; // fallback при 404
+3. size — если на изображении НЕ одежда и НЕ обувь, не ищи размер, верни null. Иначе: обувь — двузначное 25–50 (EU) или 4–20 (US при маркировке US); одежда — XXS, XS, S, M, L, XL, XXL. Если нет — null.`;
+        const models = ['gemini-2.0-flash', 'gemini-2.0-flash-001', 'gemini-1.5-flash']; // новые проекты часто без 1.5
         for (const model of models) {
           const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
           method: 'POST',
