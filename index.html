@@ -573,7 +573,7 @@
     // Не требует ключа - работает сразу! Рекомендуется для Беларуси/России.
     
     // ВАРИАНТ 2: Google Gemini (БЕСПЛАТНО до 15 запросов/мин, может быть заблокирован)
-    const GEMINI_API_KEY = ''; // Получи на https://aistudio.google.com/app/apikey
+    const GEMINI_API_KEY = 'AIzaSyCi_FCso6btBPX-p_qZZ69lu78age4P-ww'; // Gemini API — запасной Vision
     // sessionStorage.setItem('gemini_key', '...')
     
     // ВАРИАНТ 3: OCRAPI.cloud (БЕСПЛАТНО 250 запросов/месяц)
@@ -827,8 +827,9 @@
           const lineLower = line.toLowerCase();
           if (isOnlyFeatures(line)) return true;
           if (/[|<>\\\/]/.test(line)) return true; // мусор OCR: | < > \ /
-          const skipKeywords = ['цена', 'price', 'стоимость', 'cost', 'размер', 'size', 'руб', 'рублей', 'бел', 'byn', 'usd', 'eur', 'шт', 'шт.', 'осталось', 'до конца', 'единиц', 'единицы', 'акция', 'скидка', 'распродажа', 'промо', 'спецпредложение', 'только сегодня'];
+          const skipKeywords = ['цена', 'price', 'стоимость', 'cost', 'размер', 'size', 'руб', 'рублей', 'бел', 'byn', 'usd', 'eur', 'шт', 'шт.', 'осталось', 'до конца', 'единиц', 'единицы', 'акция', 'скидка', 'распродажа', 'промо', 'спецпредложение', 'только сегодня', 'главная', 'каталог', 'избранное', 'корзина', 'ozon', 'wildberries', 'яндекс маркет', 'мой ozon', 'мой wb'];
           if (skipKeywords.some(k => lineLower.includes(k))) return true;
+          if ((line.match(/[—–−]/g) || []).length >= 2 || /~~/.test(line)) return true; // хлебные крошки: "А — Б — В" или "А ~~ Б"
           if (/^\d+[\s,\.]?\d*$/.test(line)) return true; // только цифры
           if (/^\d{1,2}:\d{2}/.test(line)) return true; // время 15:52
           if (/[@+]\s*[a-z0-9]/i.test(line) || line.includes('@')) return true; // контакты
@@ -1112,6 +1113,16 @@
       }
     }
 
+    function isSuspiciousName(name) {
+      if (!name || typeof name !== 'string') return false;
+      const s = name.toLowerCase();
+      const navKeywords = ['главная', 'каталог', 'избранное', 'корзина', 'ozon', 'wildberries', 'яндекс маркет', 'мой ozon', 'мой wb'];
+      if (navKeywords.some(k => s.includes(k))) return true;
+      if ((name.match(/[—–−]/g) || []).length >= 2 || /~~/.test(name)) return true;
+      if (name.length > 60) return true; // слишком длинное — скорее не название
+      return false;
+    }
+
     async function analyzeImageWithCV(imageUrl, timeoutMs = 30000) {
       const priority = CV_API_PRIORITY || ['tesseract', 'gemini', 'ocrapi', 'openai'];
       
@@ -1161,8 +1172,13 @@
           }
           
           if (result) {
-            console.log(`✓ Анализ успешен через ${api}`);
-            return result;
+            if (api === 'tesseract' && isSuspiciousName(result?.name)) {
+              console.log('Tesseract: название подозрительное, пробую следующий API');
+              result = null;
+            } else {
+              console.log(`✓ Анализ успешен через ${api}`);
+              return result;
+            }
           }
         } catch (e) {
           // Очищаем таймаут при ошибке
