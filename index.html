@@ -979,7 +979,7 @@
 }
 
 Важно:
-- name: точное название товара (НЕ навигация, НЕ "Главная", "Каталог")
+- name: осмысленное название товара из описания/подписи поста. НЕ мусор OCR ("Л М re i", одиночные буквы). НЕ навигация (Главная, Каталог, Избранное, Корзина). НЕ хлебные крошки (А — Б — В). Минимум 2 слова или одно длинное слово (платье, кофемолка). Без спецсимволов | < > ® ©. Для Insta — бери из caption/описания под фото.
 - price: ОБЯЗАТЕЛЬНО число рядом с валютой. НЕ бери время (1:30), количество (1 шт). Только сумма. Примеры: "113,94 BYN" → 113.94.
 - currency (связка число + валюта рядом):
   BYN, Br, бун → "Br"
@@ -1119,11 +1119,17 @@
 
     function isSuspiciousName(name) {
       if (!name || typeof name !== 'string') return false;
-      const s = name.toLowerCase();
+      const s = name.toLowerCase().trim();
       const navKeywords = ['главная', 'каталог', 'избранное', 'корзина', 'ozon', 'wildberries', 'яндекс маркет', 'мой ozon', 'мой wb'];
       if (navKeywords.some(k => s.includes(k))) return true;
       if ((name.match(/[—–−]/g) || []).length >= 2 || /~~/.test(name)) return true;
-      if (name.length > 60) return true; // слишком длинное — скорее не название
+      if (name.length > 60) return true;
+      if (name.length < 5) return true;
+      // Мусор OCR: "Л М re i" — нет слова из 4+ букв
+      const words = s.split(/\s+/).filter(w => /[a-zа-яё]/i.test(w));
+      const hasLongWord = words.some(w => w.length >= 4);
+      if (!hasLongWord && words.length >= 2) return true; // только короткие "слова" — мусор
+      if (/[|<>®©]/.test(name)) return true; // спецсимволы
       return false;
     }
 
@@ -1176,8 +1182,8 @@
           }
           
           if (result) {
-            if (api === 'tesseract' && isSuspiciousName(result?.name)) {
-              console.log('Tesseract: название подозрительное, пробую следующий API');
+            if (isSuspiciousName(result?.name)) {
+              console.log(`${api}: название подозрительное, пробую следующий API`);
               result = null;
             } else {
               console.log(`✓ Анализ успешен через ${api}`);
