@@ -775,18 +775,13 @@
           });
         }
         
-        // Не обновляем popup во время распознавания - только логируем в консоль
-        // Telegram Web App не позволяет открывать новый popup пока открыт предыдущий
+        // Не обновляем popup во время распознавания — только логируем в консоль
+        // Обновление popup вызывает "popup already opened" и зависание
         const { data: { text } } = await Tesseract.recognize(imageData, 'rus+eng', {
           logger: (m) => {
             if (m.status === 'recognizing text') {
               const progress = Math.round(m.progress * 100);
-              // Логируем в консоль вместо обновления popup
               console.log(`Tesseract прогресс: ${progress}%`);
-              // Обновляем сообщение только на ключевых этапах (25%, 50%, 75%, 100%)
-              if (progress === 25 || progress === 50 || progress === 75 || progress === 100) {
-                safeShowAlert(`Tesseract: ${progress}%`);
-              }
             }
           }
         });
@@ -797,15 +792,26 @@
         let currency = null;
         let size = null;
         const fullText = text.toLowerCase();
+        
+        const isBadName = (line) => {
+          const lineLower = line.toLowerCase();
+          const skipKeywords = ['цена', 'price', 'стоимость', 'cost', 'размер', 'size', 'руб', 'рублей', 'бел', 'byn', 'usd', 'eur', 'шт', 'шт.'];
+          if (skipKeywords.some(k => lineLower.includes(k))) return true;
+          if (/^\d+[\s,\.]?\d*$/.test(line)) return true; // только цифры
+          if (/^\d{1,2}:\d{2}/.test(line)) return true; // время 15:52
+          if (/[@+]\s*[a-z0-9]/i.test(line) || line.includes('@')) return true; // контакты
+          if ((line.match(/[!@#$%^&*+=\[\]{}|\\]/g) || []).length > 2) return true; // много спецсимволов
+          if (/^[€$₽Br₸\s\d,\.]+$/.test(lineLower)) return true;
+          if (line.length < 5 || line.length > 80) return true;
+          if (/^[\d\s:.,]+$/.test(line)) return true; // только цифры/время
+          return false;
+        };
+        
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i];
           const lineLower = line.toLowerCase();
-          if (!name && line.length > 5 && line.length < 100) {
-            const skipKeywords = ['цена', 'price', 'стоимость', 'cost', 'размер', 'size', 'руб', 'рублей', 'бел', 'byn', 'usd', 'eur'];
-            const isSkip = skipKeywords.some(k => lineLower.includes(k)) || /^\d+[\s,\.]?\d*$/.test(line);
-            if (!isSkip && !lineLower.match(/^[€$₽Br₸\s\d,\.]+$/)) {
-              name = line.trim();
-            }
+          if (!name && !isBadName(line)) {
+            name = line.trim();
           }
           const priceWithLabel = line.match(/(?:цена|price|стоимость|cost)[\s:]*([0-9\s,\.]+)/i);
           const priceOnly = line.match(/([0-9]{2,7}(?:\s|,|\.)[0-9]{0,2}|[0-9]{3,7})/);
@@ -832,9 +838,11 @@
           }
         }
         if (!name && lines.length > 0) {
-          const firstLine = lines[0];
-          if (firstLine.length > 3 && firstLine.length < 100 && !/^\d+/.test(firstLine)) {
-            name = firstLine.trim();
+          for (const ln of lines) {
+            if (!isBadName(ln)) {
+              name = ln.trim();
+              break;
+            }
           }
         }
         return { name, price, currency, size };
