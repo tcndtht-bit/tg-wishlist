@@ -808,6 +808,9 @@
           return false;
         };
         
+        // Приоритет существительным: прилагательные часто оканчиваются на -ая, -ый, -ое, -ий и т.д.
+        const looksLikeAdjective = (line) => /[а-яё](ая|ый|ое|ий|яя|ее|ой|ие|ые|ую|ую)$/i.test(line.trim());
+        
         // Сначала ищем цену рядом с валютой (BYN, Br, ₽ и т.д.) — приоритет
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i];
@@ -834,7 +837,11 @@
           const line = lines[i];
           const lineLower = line.toLowerCase();
           if (!name && !isBadName(line)) {
-            name = line.trim();
+            const trimmed = line.trim();
+            // Приоритет существительным: сначала пробуем строки без признаков прилагательного
+            if (!looksLikeAdjective(trimmed)) {
+              name = trimmed;
+            }
           }
           if (!price) {
             const priceWithLabel = line.match(/(?:цена|price|стоимость|cost)[\s:]*([0-9\s,\.]+)/i);
@@ -854,21 +861,34 @@
               currency = typeof currencyMatch === 'string' ? currencyMatch : currencyMatch[1];
             }
           }
-          const sizeWithLabel = line.match(/(?:размер|size)[\s:]*([MXLS\d]+)/i);
-          const sizeOnly = line.match(/\b([MXLS]{1,3}|\d{2,3})\b/);
-          const sizeMatch = sizeWithLabel || sizeOnly;
-          if (sizeMatch && !size) {
-            const sizeVal = (sizeMatch[1] || sizeMatch[0]).trim();
-            if (['m', 'l', 'xl', 's', 'xxl', 'xs', 'xxs', 'xxxl'].includes(sizeVal.toLowerCase()) || /^\d{2,3}$/.test(sizeVal)) {
-              size = sizeVal;
+          // Размер: только текстовый XXS-XL или числовой — только при распознанной обуви
+          const footwearKeywords = /обувь|кроссовки|туфли|ботинки|сапоги|размер обуви|shoe|boot|sneaker/i;
+          const textSizeMatch = line.match(/\b(xxs|xxxs|xs|s|m|l|xl|xxl|xxxl|2xl|3xl)\b/i);
+          if (textSizeMatch && !size) {
+            size = textSizeMatch[1].toUpperCase();
+          }
+          if (!size && footwearKeywords.test(fullText)) {
+            const sizeWithLabel = line.match(/(?:размер|size)[\s:]*(\d{2,3})/i);
+            if (sizeWithLabel && parseInt(sizeWithLabel[1]) >= 20 && parseInt(sizeWithLabel[1]) <= 50) {
+              size = sizeWithLabel[1];
             }
           }
         }
         if (!name && lines.length > 0) {
+          // Пробуем существительные (не прилагательные)
           for (const ln of lines) {
-            if (!isBadName(ln)) {
+            if (!isBadName(ln) && !looksLikeAdjective(ln.trim())) {
               name = ln.trim();
               break;
+            }
+          }
+          // Если не нашли — берём любое подходящее (в т.ч. прилагательное)
+          if (!name) {
+            for (const ln of lines) {
+              if (!isBadName(ln)) {
+                name = ln.trim();
+                break;
+              }
             }
           }
         }
