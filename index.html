@@ -962,7 +962,8 @@
           reader.onloadend = () => resolve(reader.result.split(',')[1]);
           reader.readAsDataURL(blob);
         }));
-        const mimeType = imageUrl.startsWith('data:') ? imageUrl.match(/data:([^;]+)/)?.[1] || 'image/jpeg' : 'image/jpeg';
+        let mimeType = imageUrl.startsWith('data:') ? imageUrl.match(/data:([^;]+)/)?.[1] || 'image/jpeg' : 'image/jpeg';
+        if (!/^image\/(jpeg|png|webp|gif)$/i.test(mimeType)) mimeType = 'image/jpeg'; // Gemini не поддерживает application/octet-stream
         const prompt = `Проанализируй изображение и извлеки информацию о товаре. Верни ТОЛЬКО валидный JSON без пояснений:
 
 {
