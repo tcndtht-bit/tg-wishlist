@@ -608,7 +608,7 @@
     // 2. Открыть Mini App с start_param:
     //    - Вариант 1: img_url_<encoded_url> - где encoded_url это URL изображения (encodeURIComponent)
     //    - Вариант 2: img_<file_id> - если используется bot_token для получения файла
-    // Пример: bot.openWebApp({ url: 'https://your-app.netlify.app', start_param: 'img_url_' + encodeURIComponent(imageUrl) })
+    // Пример: bot.openWebApp({ url: 'https://your-app.pages.dev', start_param: 'img_url_' + encodeURIComponent(imageUrl) })
     // Мини-приложение автоматически проанализирует изображение и откроет форму с автозаполнением
 
     const tg = window.Telegram?.WebApp;

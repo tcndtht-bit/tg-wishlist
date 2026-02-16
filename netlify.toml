@@ -1,5 +1,0 @@
-# Netlify config для статического HTML
-[build]
-  publish = "."
-  command = ""
-  functions = "netlify/functions"
