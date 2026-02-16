@@ -825,18 +825,21 @@
         const isBadName = (line) => {
           const lineLower = line.toLowerCase();
           if (isOnlyFeatures(line)) return true;
+          if (/[|<>\\\/]/.test(line)) return true; // мусор OCR: | < > \ /
           const skipKeywords = ['цена', 'price', 'стоимость', 'cost', 'размер', 'size', 'руб', 'рублей', 'бел', 'byn', 'usd', 'eur', 'шт', 'шт.'];
           if (skipKeywords.some(k => lineLower.includes(k))) return true;
           if (/^\d+[\s,\.]?\d*$/.test(line)) return true; // только цифры
           if (/^\d{1,2}:\d{2}/.test(line)) return true; // время 15:52
           if (/[@+]\s*[a-z0-9]/i.test(line) || line.includes('@')) return true; // контакты
-          if ((line.match(/[!@#$%^&*+=\[\]{}|\\\-]/g) || []).length >= 2) return true; // много спецсимволов
+          if ((line.match(/[|<>\\\/!@#$%^&*+=\[\]{}]/g) || []).length >= 1) return true; // мусор OCR: | < > и т.п.
           if (/^[=\-_]/.test(line) || /^[=\-_\s]+/.test(line) || /^[=\-_]+[a-zа-яё]*$/i.test(line)) return true; // "- =вы"
           if (/^[€$₽Br₸\s\d,\.]+$/.test(lineLower)) return true;
           if (line.length < 5 || line.length > 80) return true;
           if (/^[\d\s:.,]+$/.test(line)) return true; // только цифры/время
           const letters = (line.match(/[a-zA-Zа-яА-ЯёЁ]/g) || []).length;
+          const total = (line.match(/[a-zA-Zа-яА-ЯёЁ0-9]/g) || []).length;
           if (letters < 3) return true; // слишком мало букв
+          if (total > 0 && letters / total < 0.7) return true; // доля букв < 70% — мусор
           return false;
         };
         
