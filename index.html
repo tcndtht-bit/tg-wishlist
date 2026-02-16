@@ -831,7 +831,8 @@
           if (/^\d+[\s,\.]?\d*$/.test(line)) return true; // только цифры
           if (/^\d{1,2}:\d{2}/.test(line)) return true; // время 15:52
           if (/[@+]\s*[a-z0-9]/i.test(line) || line.includes('@')) return true; // контакты
-          if ((line.match(/[|<>\\\/!@#$%^&*+=\[\]{}]/g) || []).length >= 1) return true; // мусор OCR: | < > и т.п.
+          // Символы-мусор OCR: ©®™℠ ±×÷°¬∞≠≤≥ ¢£¤ «»‹›‚„""'' •◦… §¶†‡№⁄℅ ←→↑↓⇒↔ псевдографика U+2500–257F
+          if (/[\u00A9\u00AE\u2122\u2120|<>\\\/!@#$%^&*+=\[\]{}®©™℠±×÷°¬∞≠≤≥¢£¤«»‹›‚„"''•◦…§¶†‡№⁄℅←→↑↓⇒↔\u2500-\u257F´`¨˚˜˝˘ˇ˙¸˛]/.test(line)) return true;
           if (/^[=\-_]/.test(line) || /^[=\-_\s]+/.test(line) || /^[=\-_]+[a-zа-яё]*$/i.test(line)) return true; // "- =вы"
           if (/^[€$₽Br₸\s\d,\.]+$/.test(lineLower)) return true;
           if (line.length < 5 || line.length > 80) return true;
