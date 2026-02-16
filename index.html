@@ -946,21 +946,43 @@
       }
     }
 
-    async function analyzeImageWithCV(imageUrl) {
+    async function analyzeImageWithCV(imageUrl, timeoutMs = 30000) {
       const priority = CV_API_PRIORITY || ['tesseract', 'gemini', 'ocrapi', 'openai'];
+      
       for (const api of priority) {
         let result = null;
-        if (api === 'tesseract') {
-          result = await analyzeImageWithTesseract(imageUrl);
-        } else if (api === 'gemini') {
-          result = await analyzeImageWithGemini(imageUrl);
-        } else if (api === 'openai') {
-          result = await analyzeImageWithOpenAI(imageUrl);
-        } else if (api === 'ocrapi') {
-          result = await analyzeImageWithOCRAPI(imageUrl);
+        try {
+          // Создаем промис с таймаутом для каждой функции анализа
+          let analysisPromise;
+          if (api === 'tesseract') {
+            analysisPromise = analyzeImageWithTesseract(imageUrl);
+          } else if (api === 'gemini') {
+            analysisPromise = analyzeImageWithGemini(imageUrl);
+          } else if (api === 'openai') {
+            analysisPromise = analyzeImageWithOpenAI(imageUrl);
+          } else if (api === 'ocrapi') {
+            analysisPromise = analyzeImageWithOCRAPI(imageUrl);
+          } else {
+            continue;
+          }
+          
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error(`Таймаут анализа через ${api} (${timeoutMs/1000} сек)`)), timeoutMs)
+          );
+          
+          result = await Promise.race([analysisPromise, timeoutPromise]);
+          
+          if (result) {
+            console.log(`✓ Анализ успешен через ${api}`);
+            return result;
+          }
+        } catch (e) {
+          console.warn(`Ошибка анализа через ${api}:`, e.message || e);
+          // Продолжаем пробовать следующий API
+          continue;
         }
-        if (result) return result;
       }
+      
       tg?.showAlert?.('Не удалось проанализировать изображение. Попробуй другое фото или проверь настройки API.');
       return null;
     }
@@ -975,6 +997,26 @@
         // Убеждаемся, что пользователь авторизован (данные уже загружены в loadAll)
         await ensureUser();
         
+        // Убеждаемся, что данные загружены (если они были потеряны)
+        if (!wishlists || wishlists.length === 0 || !wishes || !categories || categories.length === 0) {
+          console.log('Перезагружаем данные...');
+          if (useSupabase && sb) {
+            const wlRes = await loadWishlistsFromSupabase();
+            if (wlRes.data) wishlists = wlRes.data;
+            wishes = await loadWishesFromSupabase(new Set(wishlists.map((w) => w.id)));
+            wishes = Array.isArray(wishes) ? wishes : [];
+            const cats = await loadCategoriesFromSupabase();
+            categories = Array.isArray(cats) && cats.length ? cats : [...DEFAULT_CATS];
+          } else {
+            wishes = loadWishesSync();
+            wishes = Array.isArray(wishes) ? wishes : [];
+            try { wishlists = (JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
+            wishlists = Array.isArray(wishlists) ? wishlists : [];
+            try { const raw = safeGetItem(CATS_KEY); categories = raw ? JSON.parse(raw) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
+            categories = Array.isArray(categories) ? categories : [...DEFAULT_CATS];
+          }
+        }
+        
         // Получаем URL изображения
         if (!imageUrl && fileId) {
           imageUrl = await getImageFromTelegram(fileId);
@@ -986,15 +1028,10 @@
           return;
         }
         
-        // Анализируем изображение с таймаутом
-        const analysisPromise = analyzeImageWithCV(imageUrl);
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Таймаут анализа изображения (30 сек)')), 30000)
-        );
-        
+        // Анализируем изображение (таймаут уже внутри analyzeImageWithCV)
         let extracted;
         try {
-          extracted = await Promise.race([analysisPromise, timeoutPromise]);
+          extracted = await analyzeImageWithCV(imageUrl, 30000);
         } catch (e) {
           console.error('Ошибка анализа изображения:', e);
           tg?.showAlert?.('Не удалось проанализировать изображение. Попробуй другое фото или открой форму вручную.');
@@ -1295,6 +1332,13 @@
           categories = Array.isArray(categories) ? categories : [...DEFAULT_CATS];
         }
         
+        // Сохраняем загруженные данные в глобальные переменные
+        console.log('Данные загружены:', { 
+          wishlists: wishlists.length, 
+          wishes: wishes.length, 
+          categories: categories.length 
+        });
+        
         if (param.startsWith('url_')) {
           const encodedUrl = param.slice(4); // Убираем "url_"
           console.log('Encoded URL:', encodedUrl);
@@ -1302,21 +1346,35 @@
           console.log('Decoded Image URL:', imageUrl);
           if (imageUrl) {
             console.log('Calling handleImageFromBot with URL...');
-            await handleImageFromBot(null, imageUrl);
+            // Вызываем handleImageFromBot, но не ждем его завершения для рендеринга
+            handleImageFromBot(null, imageUrl).catch(e => {
+              console.error('Ошибка в handleImageFromBot:', e);
+              currentView = 'main';
+              render();
+            });
+            // Рендерим интерфейс сразу после начала обработки
+            currentView = 'main';
+            render();
+            return;
           } else {
             console.error('✗ Failed to decode image URL');
             currentView = 'main';
             render();
+            return;
           }
         } else {
           console.log('File ID mode, param:', param);
-          await handleImageFromBot(param);
+          // Вызываем handleImageFromBot, но не ждем его завершения для рендеринга
+          handleImageFromBot(param).catch(e => {
+            console.error('Ошибка в handleImageFromBot:', e);
+            currentView = 'main';
+            render();
+          });
+          // Рендерим интерфейс сразу после начала обработки
+          currentView = 'main';
+          render();
+          return;
         }
-        // Не делаем return - продолжаем загрузку данных для обычного отображения
-        // Данные уже загружены выше, просто рендерим
-        currentView = 'main';
-        render();
-        return;
       } else if (startParam) {
         console.log('✗ Start param does not start with img_:', startParam);
         console.log('First 10 chars:', startParam.substring(0, 10));
