@@ -1158,24 +1158,82 @@
     }
 
     function getStartParam() {
+      console.log('=== getStartParam() called ===');
+      console.log('window.location.href:', window.location.href);
+      console.log('window.location.search:', window.location.search);
+      console.log('window.location.hash:', window.location.hash);
+      console.log('tg object:', tg);
+      console.log('tg?.initDataUnsafe:', tg?.initDataUnsafe);
+      console.log('tg?.initDataUnsafe?.start_param:', tg?.initDataUnsafe?.start_param);
+      
+      // Проверяем сохраненный параметр
       if (_savedStartParam) {
-        console.log('Using saved start param:', _savedStartParam);
+        console.log('✓ Using saved start param:', _savedStartParam);
         return _savedStartParam;
       }
+      
+      // Проверяем query параметры URL (?start_param=...)
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlStartParam = urlParams.get('start_param');
+      if (urlStartParam) {
+        console.log('✓ Start param from URL query:', urlStartParam);
+        return urlStartParam;
+      }
+      
+      // Проверяем все query параметры
+      console.log('All URL params:', Object.fromEntries(urlParams));
+      
+      // Проверяем hash параметры
       const h = window.location.hash.slice(1);
       if (h) {
+        console.log('Hash content:', h);
         try {
-          const sp = new URLSearchParams(h).get('tgWebAppStartParam');
+          const hashParams = new URLSearchParams(h);
+          console.log('Hash params:', Object.fromEntries(hashParams));
+          
+          // Проверяем tgWebAppStartParam
+          const sp = hashParams.get('tgWebAppStartParam');
           if (sp) {
-            console.log('Start param from hash:', sp);
+            console.log('✓ Start param from hash (tgWebAppStartParam):', sp);
             return sp;
+          }
+          
+          // Проверяем start_param напрямую в hash
+          const startParamFromHash = hashParams.get('start_param');
+          if (startParamFromHash) {
+            console.log('✓ Start param from hash (start_param):', startParamFromHash);
+            return startParamFromHash;
           }
         } catch (e) {
           console.error('Error parsing hash:', e);
+          // Если hash не является валидным URLSearchParams, пробуем как есть
+          if (h.startsWith('start_param=')) {
+            const sp = decodeURIComponent(h.split('=').slice(1).join('='));
+            console.log('✓ Start param from hash (raw):', sp);
+            return sp;
+          }
         }
       }
+      
+      // Проверяем Telegram initData напрямую
       const tgParam = tg?.initDataUnsafe?.start_param || '';
-      console.log('Start param from Telegram:', tgParam);
+      console.log('Telegram initData start_param:', tgParam);
+      
+      // Также проверяем через initData строку напрямую
+      if (tg?.initData) {
+        try {
+          const initDataParams = new URLSearchParams(tg.initData);
+          const initDataStartParam = initDataParams.get('start_param');
+          if (initDataStartParam) {
+            console.log('✓ Start param from initData string:', initDataStartParam);
+            return initDataStartParam;
+          }
+        } catch (e) {
+          console.error('Error parsing initData:', e);
+        }
+      }
+      
+      console.log('✗ No start param found');
       return tgParam;
     }
 
@@ -1184,22 +1242,38 @@
       const goHome = sessionStorage.getItem('publicViewGoHome');
       if (goHome) { sessionStorage.removeItem('publicViewGoHome'); hash = ''; }
       const startParam = goHome ? '' : getStartParam();
+      console.log('=== loadAll() ===');
+      console.log('Full URL:', window.location.href);
       console.log('Start param received:', startParam);
+      console.log('Start param type:', typeof startParam);
+      console.log('Start param length:', startParam?.length);
+      
       if (startParam && startParam.startsWith('img_')) {
-        console.log('Processing image from bot...');
-        const param = startParam.slice(4);
+        console.log('✓ Processing image from bot...');
+        const param = startParam.slice(4); // Убираем "img_"
+        console.log('Param after removing "img_":', param);
+        
         if (param.startsWith('url_')) {
-          const imageUrl = decodeImageUrl(param.slice(4));
-          console.log('Image URL:', imageUrl);
-          if (imageUrl) await handleImageFromBot(null, imageUrl);
-          else console.error('Failed to decode image URL');
+          const encodedUrl = param.slice(4); // Убираем "url_"
+          console.log('Encoded URL:', encodedUrl);
+          const imageUrl = decodeImageUrl(encodedUrl);
+          console.log('Decoded Image URL:', imageUrl);
+          if (imageUrl) {
+            console.log('Calling handleImageFromBot with URL...');
+            await handleImageFromBot(null, imageUrl);
+          } else {
+            console.error('✗ Failed to decode image URL');
+          }
         } else {
-          console.log('File ID:', param);
+          console.log('File ID mode, param:', param);
           await handleImageFromBot(param);
         }
         return;
       } else if (startParam) {
-        console.log('Start param does not start with img_:', startParam);
+        console.log('✗ Start param does not start with img_:', startParam);
+        console.log('First 10 chars:', startParam.substring(0, 10));
+      } else {
+        console.log('No start param found');
       }
       if (startParam && (startParam.startsWith('w_') || startParam.startsWith('i_'))) {
         hash = startParam.replace('_', '/');
