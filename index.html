@@ -786,8 +786,9 @@
         const text = data?.text || '';
         if (!text || text.trim().length < 5) return null;
 
-        // Собираем строки с bbox (вариант 1) или fallback на split
+        // Собираем строки с bbox (1), позицией y0 (5), порядком появления index (2)
         const linesWithBbox = [];
+        let lineIndex = 0;
         if (data?.blocks) {
           for (const block of data.blocks) {
             if (block.paragraphs) {
@@ -799,7 +800,7 @@
                       const b = line.bbox || { x0: 0, y0: 0, x1: 0, y1: 0 };
                       const h = (b.y1 || 0) - (b.y0 || 0);
                       const w = (b.x1 || 0) - (b.x0 || 0);
-                      linesWithBbox.push({ text: t, area: w * h, height: h });
+                      linesWithBbox.push({ text: t, area: w * h, height: h, y0: b.y0 ?? 0, index: lineIndex++ });
                     }
                   }
                 }
@@ -869,10 +870,16 @@
           }
         }
         
-        // Вариант 1: приоритет строке с макс. bbox (название обычно крупнее)
+        // Варианты 1+2+5: bbox (крупнее), позиция (y0 — выше), порядок (раньше)
         const candidates = linesWithBbox.length
-          ? [...linesWithBbox].sort((a, b) => (b.area || 0) - (a.area || 0))
-          : lines.map(t => ({ text: t, area: 0 }));
+          ? [...linesWithBbox].sort((a, b) => {
+              const da = (b.area || 0) - (a.area || 0);
+              if (da !== 0) return da;
+              const dy = (a.y0 ?? 9999) - (b.y0 ?? 9999); // меньше y0 = выше в кадре
+              if (dy !== 0) return dy;
+              return (a.index ?? 0) - (b.index ?? 0); // раньше в потоке текста
+            })
+          : lines.map((t, i) => ({ text: t, area: 0, y0: i * 20, index: i }));
         for (let i = 0; i < candidates.length && !name; i++) {
           const line = candidates[i].text || candidates[i];
           const trimmed = String(line).trim();
