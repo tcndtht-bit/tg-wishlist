@@ -593,11 +593,14 @@
     
     // Какой API использовать (по умолчанию пробует бесплатные сначала, Tesseract работает везде!)
     const CV_API_PRIORITY = ['openrouter', 'groq', 'gemini']; // OpenRouter → Groq → Gemini
-    const CV_VISION_PROMPT = `Проанализируй изображение и извлеки информацию о товаре. Верни ТОЛЬКО валидный JSON:
+    const CV_VISION_PROMPT = `Проанализируй изображение и извлеки информацию о товаре. Верни ТОЛЬКО валидный JSON без пояснений:
 {"name":"строка или N/A","price":число или null,"currency":"строка или null","size":"строка или null"}
-1. name — СУЩЕСТВИТЕЛЬНОЕ или фраза-название товара. Осмысленно. Иначе "N/A".
-2. price+currency — число+валюта рядом (BYN,RUB,$,₽,бун,руб,тг). Иначе null.
-3. size — только для одежды/обуви: EU 25-50, US 4-20, или XXS-XL. Иначе null.`;
+
+1. name — СУЩЕСТВИТЕЛЬНОЕ (единственное или множественное) или фраза-название товара. Осмысленно. Иначе "N/A".
+
+2. price и currency — ОБЯЗАТЕЛЬНО ищи связку ЧИСЛО (возможно с десятичными) + ВАЛЮТА рядом. Валюта может быть ДО или ПОСЛЕ числа. Примеры: BYN, Br, бун; RUB, ₽, руб; USD, $, долл; EUR, €, евр; KZT, ₸, тг. Берь основную цену (со скидкой если крупнее). НЕ бери время (1:30), количество (1 шт). Если нет связки число+валюта — price: null, currency: null.
+
+3. size — только для одежды/обуви: EU 25-50 или US 4-20, или XXS-XL. Иначе null.`;
     
     // ИНСТРУКЦИЯ ДЛЯ БОТА:
     // Когда пользователь отправляет изображение в бота, бот должен:
@@ -1090,7 +1093,7 @@
     async function analyzeImageWithOpenRouter(imageUrl) {
       const apiKey = OPENROUTER_API_KEY || sessionStorage.getItem('openrouter_key');
       if (!apiKey) return null;
-      const models = ['google/gemini-2.0-flash-exp:free', 'google/gemini-2.0-flash:free'];
+      const models = ['google/gemma-3-27b-it:free', 'nvidia/nemotron-nano-12b-v2-vl:free', 'qwen/qwen2.5-vl-3b-instruct:free'];
       for (const model of models) {
         try {
           const { url } = await prepareImageForVision(imageUrl);
