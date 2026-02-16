@@ -773,26 +773,58 @@
           });
         }
         
-        // Не обновляем popup во время распознавания — только логируем в консоль
-        // Обновление popup вызывает "popup already opened" и зависание
-        const { data: { text } } = await Tesseract.recognize(imageData, 'rus+eng', {
+        // Worker + recognize с blocks для bbox (название обычно крупнее)
+        const worker = await Tesseract.createWorker('rus+eng', 1, {
           logger: (m) => {
             if (m.status === 'recognizing text') {
-              const progress = Math.round(m.progress * 100);
-              console.log(`Tesseract прогресс: ${progress}%`);
+              console.log(`Tesseract прогресс: ${Math.round(m.progress * 100)}%`);
             }
           }
         });
+        const { data } = await worker.recognize(imageData, {}, { blocks: true });
+        await worker.terminate();
+        const text = data?.text || '';
         if (!text || text.trim().length < 5) return null;
-        const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+        // Собираем строки с bbox (вариант 1) или fallback на split
+        const linesWithBbox = [];
+        if (data?.blocks) {
+          for (const block of data.blocks) {
+            if (block.paragraphs) {
+              for (const par of block.paragraphs) {
+                if (par.lines) {
+                  for (const line of par.lines) {
+                    const t = (line.text || '').trim();
+                    if (t) {
+                      const b = line.bbox || { x0: 0, y0: 0, x1: 0, y1: 0 };
+                      const h = (b.y1 || 0) - (b.y0 || 0);
+                      const w = (b.x1 || 0) - (b.x0 || 0);
+                      linesWithBbox.push({ text: t, area: w * h, height: h });
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        const lines = linesWithBbox.length ? linesWithBbox.map(l => l.text) : text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
         let name = null;
         let price = null;
         let currency = null;
         let size = null;
         const fullText = text.toLowerCase();
         
+        // Вариант 4: стоп-слова признаков (степень помола, регулируемая и т.п.) — не название
+        const FEATURE_STOP_WORDS = ['степень', 'степени', 'степенью', 'помола', 'помол', 'помолу', 'регулируемая', 'регулируемый', 'регулировка', 'металлический', 'стильный', 'дизайн', 'материал', 'режим', 'функция', 'параметр', 'характеристика', 'цвет', 'оттенок', 'высокое', 'качество', 'премиум'];
+        const isOnlyFeatures = (line) => {
+          const words = line.toLowerCase().split(/\s+/).filter(w => w.length >= 2);
+          if (words.length === 0) return true;
+          return words.every(w => FEATURE_STOP_WORDS.includes(w));
+        };
+
         const isBadName = (line) => {
           const lineLower = line.toLowerCase();
+          if (isOnlyFeatures(line)) return true;
           const skipKeywords = ['цена', 'price', 'стоимость', 'cost', 'размер', 'size', 'руб', 'рублей', 'бел', 'byn', 'usd', 'eur', 'шт', 'шт.'];
           if (skipKeywords.some(k => lineLower.includes(k))) return true;
           if (/^\d+[\s,\.]?\d*$/.test(line)) return true; // только цифры
@@ -833,16 +865,26 @@
           }
         }
         
+        // Вариант 1: приоритет строке с макс. bbox (название обычно крупнее)
+        const candidates = linesWithBbox.length
+          ? [...linesWithBbox].sort((a, b) => (b.area || 0) - (a.area || 0))
+          : lines.map(t => ({ text: t, area: 0 }));
+        for (let i = 0; i < candidates.length && !name; i++) {
+          const line = candidates[i].text || candidates[i];
+          const trimmed = String(line).trim();
+          if (!isBadName(trimmed) && !looksLikeAdjective(trimmed)) name = trimmed;
+        }
+        if (!name) {
+          for (let i = 0; i < candidates.length && !name; i++) {
+            const line = candidates[i].text || candidates[i];
+            const trimmed = String(line).trim();
+            if (!isBadName(trimmed)) name = trimmed;
+          }
+        }
+
         for (let i = 0; i < lines.length; i++) {
           const line = lines[i];
           const lineLower = line.toLowerCase();
-          if (!name && !isBadName(line)) {
-            const trimmed = line.trim();
-            // Приоритет существительным: сначала пробуем строки без признаков прилагательного
-            if (!looksLikeAdjective(trimmed)) {
-              name = trimmed;
-            }
-          }
           if (!price) {
             const priceWithLabel = line.match(/(?:цена|price|стоимость|cost)[\s:]*([0-9\s,\.]+)/i);
             const priceOnly = line.match(/([0-9]{2,7}[,\.][0-9]{0,2}|[0-9]{2,7})/);
