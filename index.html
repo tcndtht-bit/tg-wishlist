@@ -967,55 +967,79 @@
 
     async function handleImageFromBot(fileId, imageUrl = null) {
       console.log('handleImageFromBot called:', { fileId, imageUrl });
-      tg?.showAlert?.('Анализирую изображение...');
-      await ensureUser();
-      if (useSupabase && sb) {
-        const wlRes = await loadWishlistsFromSupabase();
-        if (wlRes.data) wishlists = wlRes.data;
-        wishes = await loadWishesFromSupabase(new Set(wishlists.map((w) => w.id)));
-        wishes = Array.isArray(wishes) ? wishes : [];
-        const cats = await loadCategoriesFromSupabase();
-        categories = Array.isArray(cats) && cats.length ? cats : [...DEFAULT_CATS];
-      } else {
-        wishes = loadWishesSync();
-        wishes = Array.isArray(wishes) ? wishes : [];
-        try { wishlists = (JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
-        wishlists = Array.isArray(wishlists) ? wishlists : [];
-        try { const raw = safeGetItem(CATS_KEY); categories = raw ? JSON.parse(raw) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
-        categories = Array.isArray(categories) ? categories : [...DEFAULT_CATS];
-      }
-      if (!imageUrl && fileId) {
-        imageUrl = await getImageFromTelegram(fileId);
-      }
-      if (!imageUrl) {
-        tg?.showAlert?.('Не удалось получить изображение от бота.');
-        render();
-        return;
-      }
-      const extracted = await analyzeImageWithCV(imageUrl);
-      if (!extracted) {
-        tg?.showAlert?.('Не удалось проанализировать изображение. Открой форму вручную.');
-        render();
-        return;
-      }
-      let imageBase64;
+      
       try {
-        if (imageUrl.startsWith('data:')) {
-          imageBase64 = imageUrl;
-        } else {
-          imageBase64 = await fetch(imageUrl).then(r => r.blob()).then(blob => new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          }));
+        // Показываем попап с возможностью закрытия
+        tg?.showAlert?.('Анализирую изображение...');
+        
+        // Убеждаемся, что пользователь авторизован (данные уже загружены в loadAll)
+        await ensureUser();
+        
+        // Получаем URL изображения
+        if (!imageUrl && fileId) {
+          imageUrl = await getImageFromTelegram(fileId);
         }
+        if (!imageUrl) {
+          tg?.showAlert?.('Не удалось получить изображение от бота.');
+          currentView = 'main';
+          render();
+          return;
+        }
+        
+        // Анализируем изображение с таймаутом
+        const analysisPromise = analyzeImageWithCV(imageUrl);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Таймаут анализа изображения (30 сек)')), 30000)
+        );
+        
+        let extracted;
+        try {
+          extracted = await Promise.race([analysisPromise, timeoutPromise]);
+        } catch (e) {
+          console.error('Ошибка анализа изображения:', e);
+          tg?.showAlert?.('Не удалось проанализировать изображение. Попробуй другое фото или открой форму вручную.');
+          currentView = 'main';
+          render();
+          return;
+        }
+        
+        if (!extracted) {
+          tg?.showAlert?.('Не удалось проанализировать изображение. Открой форму вручную.');
+          currentView = 'main';
+          render();
+          return;
+        }
+        
+        // Загружаем изображение в base64
+        let imageBase64;
+        try {
+          if (imageUrl.startsWith('data:')) {
+            imageBase64 = imageUrl;
+          } else {
+            imageBase64 = await fetch(imageUrl).then(r => r.blob()).then(blob => new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result);
+              reader.onerror = reject;
+              reader.readAsDataURL(blob);
+            }));
+          }
+        } catch (e) {
+          console.error('Ошибка загрузки изображения:', e);
+          tg?.showAlert?.('Не удалось загрузить изображение.');
+          currentView = 'main';
+          render();
+          return;
+        }
+        
+        // Открываем форму с данными
+        openWishModalFromImage(imageBase64, extracted);
+        
       } catch (e) {
-        tg?.showAlert?.('Не удалось загрузить изображение.');
+        console.error('Критическая ошибка в handleImageFromBot:', e);
+        tg?.showAlert?.('Произошла ошибка при обработке изображения. Попробуй еще раз.');
+        currentView = 'main';
         render();
-        return;
       }
-      openWishModalFromImage(imageBase64, extracted);
     }
 
     async function loadWishesFromSupabase(wlIdSet) {
@@ -1253,6 +1277,24 @@
         const param = startParam.slice(4); // Убираем "img_"
         console.log('Param after removing "img_":', param);
         
+        // Загружаем данные перед обработкой изображения
+        await ensureUser();
+        if (useSupabase && sb) {
+          const wlRes = await loadWishlistsFromSupabase();
+          if (wlRes.data) wishlists = wlRes.data;
+          wishes = await loadWishesFromSupabase(new Set(wishlists.map((w) => w.id)));
+          wishes = Array.isArray(wishes) ? wishes : [];
+          const cats = await loadCategoriesFromSupabase();
+          categories = Array.isArray(cats) && cats.length ? cats : [...DEFAULT_CATS];
+        } else {
+          wishes = loadWishesSync();
+          wishes = Array.isArray(wishes) ? wishes : [];
+          try { wishlists = (JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
+          wishlists = Array.isArray(wishlists) ? wishlists : [];
+          try { const raw = safeGetItem(CATS_KEY); categories = raw ? JSON.parse(raw) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
+          categories = Array.isArray(categories) ? categories : [...DEFAULT_CATS];
+        }
+        
         if (param.startsWith('url_')) {
           const encodedUrl = param.slice(4); // Убираем "url_"
           console.log('Encoded URL:', encodedUrl);
@@ -1263,11 +1305,17 @@
             await handleImageFromBot(null, imageUrl);
           } else {
             console.error('✗ Failed to decode image URL');
+            currentView = 'main';
+            render();
           }
         } else {
           console.log('File ID mode, param:', param);
           await handleImageFromBot(param);
         }
+        // Не делаем return - продолжаем загрузку данных для обычного отображения
+        // Данные уже загружены выше, просто рендерим
+        currentView = 'main';
+        render();
         return;
       } else if (startParam) {
         console.log('✗ Start param does not start with img_:', startParam);
