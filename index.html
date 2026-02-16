@@ -781,7 +781,7 @@
             }
           }
         });
-        const { data } = await worker.recognize(imageData, {}, { blocks: true });
+        const { data } = await worker.recognize(imageData, {}, { text: true, blocks: true });
         await worker.terminate();
         const text = data?.text || '';
         if (!text || text.trim().length < 5) return null;
@@ -789,22 +789,22 @@
         // Собираем строки с bbox (1), позицией y0 (5), порядком появления index (2)
         const linesWithBbox = [];
         let lineIndex = 0;
+        const pushLine = (line) => {
+          const t = (line.text || '').trim();
+          if (!t) return;
+          const b = line.bbox || { x0: 0, y0: 0, x1: 0, y1: 0 };
+          const h = (b.y1 || 0) - (b.y0 || 0);
+          const w = (b.x1 || 0) - (b.x0 || 0);
+          linesWithBbox.push({ text: t, area: w * h, height: h, y0: b.y0 ?? 0, index: lineIndex++ });
+        };
         if (data?.blocks) {
           for (const block of data.blocks) {
             if (block.paragraphs) {
               for (const par of block.paragraphs) {
-                if (par.lines) {
-                  for (const line of par.lines) {
-                    const t = (line.text || '').trim();
-                    if (t) {
-                      const b = line.bbox || { x0: 0, y0: 0, x1: 0, y1: 0 };
-                      const h = (b.y1 || 0) - (b.y0 || 0);
-                      const w = (b.x1 || 0) - (b.x0 || 0);
-                      linesWithBbox.push({ text: t, area: w * h, height: h, y0: b.y0 ?? 0, index: lineIndex++ });
-                    }
-                  }
-                }
+                if (par.lines) for (const line of par.lines) pushLine(line);
               }
+            } else if (block.lines) {
+              for (const line of block.lines) pushLine(line);
             }
           }
         }
@@ -827,7 +827,7 @@
           const lineLower = line.toLowerCase();
           if (isOnlyFeatures(line)) return true;
           if (/[|<>\\\/]/.test(line)) return true; // мусор OCR: | < > \ /
-          const skipKeywords = ['цена', 'price', 'стоимость', 'cost', 'размер', 'size', 'руб', 'рублей', 'бел', 'byn', 'usd', 'eur', 'шт', 'шт.'];
+          const skipKeywords = ['цена', 'price', 'стоимость', 'cost', 'размер', 'size', 'руб', 'рублей', 'бел', 'byn', 'usd', 'eur', 'шт', 'шт.', 'осталось', 'до конца', 'единиц', 'единицы', 'акция', 'скидка', 'распродажа', 'промо', 'спецпредложение', 'только сегодня'];
           if (skipKeywords.some(k => lineLower.includes(k))) return true;
           if (/^\d+[\s,\.]?\d*$/.test(line)) return true; // только цифры
           if (/^\d{1,2}:\d{2}/.test(line)) return true; // время 15:52
