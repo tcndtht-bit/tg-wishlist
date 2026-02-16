@@ -612,11 +612,48 @@
     const SIZE_RE = /^[a-zA-Z0-9\s\-.]*$/;
     const URL_RE = /^(https?:\/\/)?([\w-]+\.)+[\w-]+(\/[\w\-./?%&=]*)?$/i;
 
+    // Функция проверки несохраненных данных
+    function hasUnsavedData() {
+      // Проверяем, открыта ли модалка формы желания
+      const wishModal = document.getElementById('wishModal');
+      if (wishModal && wishModal.classList.contains('open')) {
+        const form = document.getElementById('wishForm');
+        const name = document.getElementById('wishName')?.value?.trim();
+        const comment = document.getElementById('wishComment')?.value?.trim();
+        const link = document.getElementById('wishLink')?.value?.trim();
+        const price = document.getElementById('wishPrice')?.value?.trim();
+        const size = document.getElementById('wishSize')?.value?.trim();
+        const wishlistId = document.getElementById('wishWishlist')?.value;
+        
+        // Если есть хотя бы одно заполненное поле или изображение - есть несохраненные данные
+        if (name || comment || link || price || size || wishlistId || pendingImageBase64) {
+          return true;
+        }
+      }
+      
+      // Проверяем другие модалки с несохраненными данными
+      // (можно добавить проверку для других форм)
+      
+      return false;
+    }
+    
+    // Функция обновления состояния предупреждения о закрытии
+    function updateClosingConfirmation() {
+      if (tg && typeof tg.enableClosingConfirmation === 'function' && typeof tg.disableClosingConfirmation === 'function') {
+        if (hasUnsavedData()) {
+          tg.enableClosingConfirmation();
+        } else {
+          tg.disableClosingConfirmation();
+        }
+      }
+    }
+
     try {
       if (tg) {
         tg.ready();
         tg.expand();
-        tg.enableClosingConfirmation();
+        // Не включаем предупреждение сразу - будем включать только при наличии несохраненных данных
+        updateClosingConfirmation();
         document.body.style.background = tg.themeParams?.bg_color || 'var(--bg-primary)';
         if (tg.themeParams?.text_color) document.body.style.color = tg.themeParams.text_color;
         if (tg.themeParams?.secondary_bg_color) document.documentElement.style.setProperty('--bg-secondary', tg.themeParams.secondary_bg_color);
@@ -953,9 +990,11 @@
       for (const api of priority) {
         let result = null;
         let timeoutId = null;
+        let analysisAborted = false;
+        
         try {
           console.log(`Пробую анализ через ${api}...`);
-          tg?.showAlert?.(`Пробую ${api}...`);
+          tg?.showAlert?.(`Анализ через ${api}... (макс ${timeoutMs/1000} сек)`);
           
           // Создаем промис с таймаутом для каждой функции анализа
           let analysisPromise;
@@ -974,6 +1013,7 @@
           // Создаем промис с таймаутом
           const timeoutPromise = new Promise((_, reject) => {
             timeoutId = setTimeout(() => {
+              analysisAborted = true;
               reject(new Error(`Таймаут анализа через ${api} (${timeoutMs/1000} сек)`));
             }, timeoutMs);
           });
@@ -982,23 +1022,35 @@
           result = await Promise.race([analysisPromise, timeoutPromise]);
           
           // Очищаем таймаут если промис завершился успешно
-          if (timeoutId) clearTimeout(timeoutId);
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
+          }
+          
+          // Если анализ был прерван таймаутом, не используем результат
+          if (analysisAborted) {
+            console.log(`Анализ через ${api} прерван по таймауту`);
+            continue;
+          }
           
           if (result) {
             console.log(`✓ Анализ успешен через ${api}`);
-            tg?.showAlert?.(`✓ Успешно через ${api}`);
+            tg?.showAlert?.(`✓ Готово!`);
             return result;
           }
         } catch (e) {
           // Очищаем таймаут при ошибке
-          if (timeoutId) clearTimeout(timeoutId);
+          if (timeoutId) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
+          }
           
           const errorMsg = e.message || String(e);
           console.warn(`Ошибка анализа через ${api}:`, errorMsg);
           
-          // Показываем ошибку пользователю только если это не просто отсутствие API ключа
+          // Показываем ошибку пользователю только если это таймаут
           if (errorMsg.includes('Таймаут')) {
-            tg?.showAlert?.(`Таймаут ${api} (${timeoutMs/1000} сек). Пробую следующий...`);
+            tg?.showAlert?.(`Таймаут ${api} (${timeoutMs/1000} сек). Пробую следующий API...`);
           }
           
           // Продолжаем пробовать следующий API
@@ -1014,8 +1066,8 @@
       console.log('handleImageFromBot called:', { fileId, imageUrl });
       
       try {
-        // Показываем попап с возможностью закрытия
-        tg?.showAlert?.('Анализирую изображение...');
+        // Показываем начальное сообщение (будет обновляться в analyzeImageWithCV)
+        tg?.showAlert?.('Начинаю анализ изображения...');
         
         // Убеждаемся, что пользователь авторизован (данные уже загружены в loadAll)
         await ensureUser();
@@ -2351,6 +2403,9 @@
       });
       document.getElementById('wishModalTitle').textContent = 'Проверь данные из изображения';
       
+      // Включаем предупреждение при открытии формы с данными
+      updateClosingConfirmation();
+      
       const autoFilled = new Set();
       if (extractedData.name) {
         document.getElementById('wishName').value = extractedData.name;
@@ -2435,6 +2490,9 @@
       });
       document.getElementById('wishModalTitle').textContent = editId ? 'Редактировать желание' : 'Добавить желание';
       
+      // Отключаем предупреждение при открытии пустой формы (будет включено при вводе данных)
+      updateClosingConfirmation();
+      
       document.querySelectorAll('.form-group label').forEach((label) => {
         label.style.color = '';
         const text = label.textContent.replace(/\s*\(автозаполнено\)/g, '');
@@ -2504,6 +2562,8 @@
 
     function closeWishModal() {
       document.getElementById('wishModal').classList.remove('open');
+      // Отключаем предупреждение при закрытии модалки
+      updateClosingConfirmation();
     }
 
     function updateCounters() {
@@ -2511,8 +2571,24 @@
       document.getElementById('commentCounter').textContent = `${(document.getElementById('wishComment').value || '').length}/500`;
     }
 
-    document.getElementById('wishName').addEventListener('input', updateCounters);
-    document.getElementById('wishComment').addEventListener('input', updateCounters);
+    document.getElementById('wishName').addEventListener('input', () => { updateCounters(); updateClosingConfirmation(); });
+    document.getElementById('wishComment').addEventListener('input', () => { updateCounters(); updateClosingConfirmation(); });
+    
+    // Отслеживаем изменения в других полях формы для предупреждения о закрытии
+    ['wishLink', 'wishPrice', 'wishSize', 'wishWishlist'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('input', updateClosingConfirmation);
+        el.addEventListener('change', updateClosingConfirmation);
+      }
+    });
+    
+    // Отслеживаем загрузку изображения
+    document.getElementById('wishImage')?.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) {
+        updateClosingConfirmation();
+      }
+    });
 
     document.getElementById('imgUpload').addEventListener('click', () => document.getElementById('wishImage').click());
     document.getElementById('imgUpload').addEventListener('dragover', (e) => { e.preventDefault(); document.getElementById('imgUpload').classList.add('dragover'); });
@@ -2537,6 +2613,7 @@
         document.getElementById('imgPreview').src = b64;
         document.getElementById('imgPreview').style.display = 'block';
         document.getElementById('imgUploadText').textContent = 'Изменить фото';
+        updateClosingConfirmation();
       } catch (e) {
         document.getElementById('imgError').textContent = 'Не удалось загрузить изображение';
         document.getElementById('imgError').style.display = 'block';
@@ -2614,6 +2691,8 @@
       await saveWishlists();
       render();
       closeWishModal();
+      // Отключаем предупреждение после сохранения
+      updateClosingConfirmation();
       tg?.HapticFeedback?.notificationOccurred?.('success');
     }));
 
