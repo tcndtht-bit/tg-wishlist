@@ -760,8 +760,6 @@
       }
       try {
         console.log('Начинаю анализ через Tesseract...');
-        // Показываем начальное сообщение один раз
-        safeShowAlert('Распознаю текст через Tesseract... (макс 30 сек)');
         let imageData;
         if (imageUrl.startsWith('data:')) {
           imageData = imageUrl;
@@ -1051,7 +1049,6 @@
         
         try {
           console.log(`Пробую анализ через ${api}...`);
-          safeShowAlert(`Анализ через ${api}... (макс ${timeoutMs/1000} сек)`);
           
           // Создаем промис с таймаутом для каждой функции анализа
           let analysisPromise;
@@ -1126,9 +1123,6 @@
       console.log('handleImageFromBot called:', { fileId, imageUrl });
       
         try {
-          // Показываем начальное сообщение один раз
-          safeShowAlert('Начинаю анализ изображения...');
-          
           // Убеждаемся, что пользователь авторизован (данные уже загружены в loadAll)
           await ensureUser();
         
@@ -1181,12 +1175,9 @@
         }
         
         // Анализируем изображение с таймаутом (30 секунд на каждый API)
+        // Не показываем popup во время анализа — он не закрывается автоматически
         let extracted;
         try {
-          // Показываем начальное сообщение
-          safeShowAlert('Начинаю анализ изображения...');
-          
-          // Запускаем анализ с таймаутом
           extracted = await analyzeImageWithCV(imageUrl, 30000);
           
           // Если анализ не дал результата, показываем сообщение
