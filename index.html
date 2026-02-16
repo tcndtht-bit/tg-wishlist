@@ -953,7 +953,7 @@
       }
     }
 
-    async function analyzeImageWithGemini(imageUrl) {
+    async function analyzeImageWithGemini(imageUrl, retry429 = true) {
       const apiKey = GEMINI_API_KEY || sessionStorage.getItem('gemini_key');
       if (!apiKey) return null;
       try {
@@ -997,11 +997,26 @@
           })
         });
         if (!response.ok) {
+          const errText = await response.text();
           if (response.status === 404 && models.indexOf(model) < models.length - 1) {
             console.warn(`Gemini ${model} 404, пробую следующую модель`);
             continue;
           }
-          console.warn('Gemini API error:', response.status, await response.text());
+          if (response.status === 429) {
+            if (models.indexOf(model) < models.length - 1) {
+              console.warn(`Gemini ${model} квота исчерпана, пробую следующую модель`);
+              continue;
+            }
+            if (retry429) {
+              const retryMs = 17000;
+              console.warn(`Gemini 429, повтор через ${retryMs/1000} сек`);
+              await new Promise(r => setTimeout(r, retryMs));
+              return analyzeImageWithGemini(imageUrl, false);
+            }
+            console.warn('Gemini 429: квота исчерпана, повтори позже');
+            return null;
+          }
+          console.warn('Gemini API error:', response.status, errText);
           return null;
         }
         const data = await response.json();
