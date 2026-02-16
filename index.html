@@ -721,7 +721,8 @@
         return null;
       }
       try {
-        tg?.showAlert?.('Распознаю текст... (это может занять 10-20 секунд)');
+        console.log('Начинаю анализ через Tesseract...');
+        tg?.showAlert?.('Распознаю текст через Tesseract... (макс 30 сек)');
         let imageData;
         if (imageUrl.startsWith('data:')) {
           imageData = imageUrl;
@@ -951,7 +952,11 @@
       
       for (const api of priority) {
         let result = null;
+        let timeoutId = null;
         try {
+          console.log(`Пробую анализ через ${api}...`);
+          tg?.showAlert?.(`Пробую ${api}...`);
+          
           // Создаем промис с таймаутом для каждой функции анализа
           let analysisPromise;
           if (api === 'tesseract') {
@@ -966,18 +971,36 @@
             continue;
           }
           
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error(`Таймаут анализа через ${api} (${timeoutMs/1000} сек)`)), timeoutMs)
-          );
+          // Создаем промис с таймаутом
+          const timeoutPromise = new Promise((_, reject) => {
+            timeoutId = setTimeout(() => {
+              reject(new Error(`Таймаут анализа через ${api} (${timeoutMs/1000} сек)`));
+            }, timeoutMs);
+          });
           
+          // Используем Promise.race для таймаута
           result = await Promise.race([analysisPromise, timeoutPromise]);
+          
+          // Очищаем таймаут если промис завершился успешно
+          if (timeoutId) clearTimeout(timeoutId);
           
           if (result) {
             console.log(`✓ Анализ успешен через ${api}`);
+            tg?.showAlert?.(`✓ Успешно через ${api}`);
             return result;
           }
         } catch (e) {
-          console.warn(`Ошибка анализа через ${api}:`, e.message || e);
+          // Очищаем таймаут при ошибке
+          if (timeoutId) clearTimeout(timeoutId);
+          
+          const errorMsg = e.message || String(e);
+          console.warn(`Ошибка анализа через ${api}:`, errorMsg);
+          
+          // Показываем ошибку пользователю только если это не просто отсутствие API ключа
+          if (errorMsg.includes('Таймаут')) {
+            tg?.showAlert?.(`Таймаут ${api} (${timeoutMs/1000} сек). Пробую следующий...`);
+          }
+          
           // Продолжаем пробовать следующий API
           continue;
         }
@@ -1028,20 +1051,30 @@
           return;
         }
         
-        // Анализируем изображение (таймаут уже внутри analyzeImageWithCV)
+        // Анализируем изображение с таймаутом (30 секунд на каждый API)
         let extracted;
         try {
+          // Показываем начальное сообщение
+          tg?.showAlert?.('Начинаю анализ изображения...');
+          
+          // Запускаем анализ с таймаутом
           extracted = await analyzeImageWithCV(imageUrl, 30000);
+          
+          // Если анализ не дал результата, показываем сообщение
+          if (!extracted) {
+            tg?.showAlert?.('Не удалось проанализировать изображение. Попробуй другое фото или открой форму вручную.');
+            currentView = 'main';
+            render();
+            return;
+          }
         } catch (e) {
           console.error('Ошибка анализа изображения:', e);
-          tg?.showAlert?.('Не удалось проанализировать изображение. Попробуй другое фото или открой форму вручную.');
-          currentView = 'main';
-          render();
-          return;
-        }
-        
-        if (!extracted) {
-          tg?.showAlert?.('Не удалось проанализировать изображение. Открой форму вручную.');
+          const errorMsg = e.message || String(e);
+          if (errorMsg.includes('Таймаут')) {
+            tg?.showAlert?.('Анализ занял слишком много времени (>30 сек). Попробуй другое фото или открой форму вручную.');
+          } else {
+            tg?.showAlert?.('Не удалось проанализировать изображение. Попробуй другое фото или открой форму вручную.');
+          }
           currentView = 'main';
           render();
           return;
