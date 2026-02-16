@@ -587,7 +587,7 @@
     // sessionStorage.setItem('bot_token', 'YOUR_BOT_TOKEN');
     
     // Какой API использовать (по умолчанию пробует бесплатные сначала, Tesseract работает везде!)
-    const CV_API_PRIORITY = ['gemini', 'tesseract', 'ocrapi', 'openai']; // Gemini первым — умный Vision для Insta/сложных скринов
+    const CV_API_PRIORITY = ['gemini']; // только Gemini Vision
     
     // ИНСТРУКЦИЯ ДЛЯ БОТА:
     // Когда пользователь отправляет изображение в бота, бот должен:
@@ -963,27 +963,21 @@
           reader.readAsDataURL(blob);
         }));
         const mimeType = imageUrl.startsWith('data:') ? imageUrl.match(/data:([^;]+)/)?.[1] || 'image/jpeg' : 'image/jpeg';
-        const prompt = `Проанализируй это изображение товара и извлеки информацию в формате JSON:
+        const prompt = `Проанализируй изображение и извлеки информацию о товаре. Верни ТОЛЬКО валидный JSON без пояснений:
+
 {
-  "name": "название товара (точное название продукта)",
-  "price": число (только цифры, запятая/точка как десятичный разделитель),
-  "currency": "символ валюты (€, $, ₽, Br, ₸) или null если не найдено",
-  "size": "размер (M, L, XL, 42, 43, S, XXL и т.д.) или null если не найдено"
+  "name": "строка или плейсхолдер N/A",
+  "price": число или null,
+  "currency": "строка или null",
+  "size": "строка или null"
 }
 
-Важно:
-- name: осмысленное название товара из описания/подписи поста. Приоритет СУЩЕСТВИТЕЛЬНЫМ (платье, кофемолка, помада), а не прилагательным (коричневое, регулируемая). НЕ мусор OCR ("Л М re i"). НЕ навигация, хлебные крошки. Минимум 2 слова или одно длинное существительное. Без спецсимволов | < > ® ©. Для Insta — из caption под фото.
-- price: ОБЯЗАТЕЛЬНО число рядом с валютой. НЕ бери время (1:30), количество (1 шт). Только сумма. Примеры: "113,94 BYN" → 113.94.
-- currency (связка число + валюта рядом):
-  BYN, Br, бун → "Br"
-  руб., рублей, рубл., ₽, бел → "₽"
-  долл., долларов, usd, $ → "$"
-  евро, eur, € → "€"
-  тенге, ₸, тг → "₸"
-- size: размер одежды/обуви, если указан
+1. name — найди СУЩЕСТВИТЕЛЬНОЕ (единственное или множественное число) или конструкцию, начинающуюся с существительного, похожую на название товара в интернет-магазине. Не бери бессмысленный набор символов — только осмысленное описание товара/услуги на языке изображения. Если подходящей сущности нет — верни "N/A".
 
-Если цену с валютой не видишь — price: null. Отвечай ТОЛЬКО валидным JSON.`;
-        const models = ['gemini-1.5-flash', 'gemini-1.5-flash-latest'];
+2. price и currency — найди связку ЧИСЛО (возможно с десятичными) + ВАЛЮТА. Валюта может быть до или после числа. Примеры: BYN, RUB, USD, EUR, KZT; символы $, ₽, ₸, €, Br; разговорные бун, руб, тг, долл, евр. Если нет — price: null, currency: null.
+
+3. size — найди размер вещи. Обувь: двузначное 25–50 (EU) или 4–20 (US, если на изображении есть маркировка US/eu); одежда: XXS, XS, S, M, L, XL, XXL. Если нет — null.`;
+        const models = ['gemini-1.5-flash', 'gemini-1.5-pro']; // fallback при 404
         for (const model of models) {
           const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
           method: 'POST',
@@ -1128,22 +1122,6 @@
       }
     }
 
-    function isSuspiciousName(name) {
-      if (!name || typeof name !== 'string') return false;
-      const s = name.toLowerCase().trim();
-      const navKeywords = ['главная', 'каталог', 'избранное', 'корзина', 'ozon', 'wildberries', 'яндекс маркет', 'мой ozon', 'мой wb'];
-      if (navKeywords.some(k => s.includes(k))) return true;
-      if ((name.match(/[—–−]/g) || []).length >= 2 || /~~/.test(name)) return true;
-      if (name.length > 60) return true;
-      if (name.length < 5) return true;
-      // Мусор OCR: "Л М re i" — нет слова из 4+ букв
-      const words = s.split(/\s+/).filter(w => /[a-zа-яё]/i.test(w));
-      const hasLongWord = words.some(w => w.length >= 4);
-      if (!hasLongWord && words.length >= 2) return true; // только короткие "слова" — мусор
-      if (/[|<>®©]/.test(name)) return true; // спецсимволы
-      return false;
-    }
-
     async function analyzeImageWithCV(imageUrl, timeoutMs = 30000) {
       const priority = CV_API_PRIORITY || ['tesseract', 'gemini', 'ocrapi', 'openai'];
       
@@ -1193,13 +1171,8 @@
           }
           
           if (result) {
-            if (isSuspiciousName(result?.name)) {
-              console.log(`${api}: название подозрительное, пробую следующий API`);
-              result = null;
-            } else {
-              console.log(`✓ Анализ успешен через ${api}`);
-              return result;
-            }
+            console.log(`✓ Анализ успешен через ${api}`);
+            return result;
           }
         } catch (e) {
           // Очищаем таймаут при ошибке
