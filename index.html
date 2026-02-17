@@ -581,7 +581,9 @@
     const SUPABASE_ANON_KEY = '__SUPABASE_ANON_KEY__';
     let sb = null;
     // --- API для анализа с главной (по фото / по ссылке): подставляется при деплое из GitHub Secret LINK_SCRAPER_URL ---
-    const API_BASE_URL = ('__LINK_SCRAPER_URL__'.indexOf('__') === 0 ? '' : '__LINK_SCRAPER_URL__'.replace(/\/$/, ''));
+    const _apiFromDeploy = ('__LINK_SCRAPER_URL__'.indexOf('__') === 0 ? '' : '__LINK_SCRAPER_URL__'.replace(/\/$/, ''));
+    const _apiFromQuery = (() => { const p = new URLSearchParams(location.search); const u = p.get('api'); return (u && u.startsWith('http')) ? u.replace(/\/$/, '') : ''; })();
+    const API_BASE_URL = _apiFromDeploy || _apiFromQuery;
     const useSupabase = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
     function loadScript(src) {
       return new Promise((resolve, reject) => {
@@ -1339,9 +1341,15 @@
                 if (r.ok) {
                   const data = await r.json();
                   extracted = { name: data.name || '', price: data.price ?? null, currency: data.currency ?? null, size: data.size ?? null };
+                } else {
+                  console.warn('analyze-image:', r.status);
                 }
-              } catch (_) {}
+              } catch (e) {
+                console.warn('analyze-image fetch:', e);
+              }
               if (overlay) overlay.classList.remove('visible');
+            } else if (!API_BASE_URL) {
+              console.warn('API_BASE_URL не задан (LINK_SCRAPER_URL в GitHub Secrets?)');
             }
             openWishModalFromImage(imageBase64, extracted);
           } catch (err) {
@@ -1376,9 +1384,15 @@
                   image: data.image || null,
                   imageBase64: data.imageBase64 || null,
                 };
+              } else {
+                console.warn('parse url:', r.status);
               }
-            } catch (_) {}
+            } catch (e) {
+              console.warn('parse url fetch:', e);
+            }
             if (overlay) overlay.classList.remove('visible');
+          } else if (!API_BASE_URL) {
+            console.warn('API_BASE_URL не задан (LINK_SCRAPER_URL в GitHub Secrets?)');
           }
           openWishModalFromLink(extracted, url);
         });
