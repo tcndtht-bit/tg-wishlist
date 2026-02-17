@@ -1034,10 +1034,10 @@
             ]);
           } catch (_) {}
           isLoading = false; render();
-          const imageBase64 = (payload.i && typeof payload.i === 'string')
-            ? ('data:image/jpeg;base64,' + payload.i)
+          const imageSrc = (payload.i && typeof payload.i === 'string')
+            ? (payload.i.startsWith('http') ? payload.i : 'data:image/jpeg;base64,' + payload.i)
             : PLACEHOLDER_IMAGE;
-          openWishModalFromImage(imageBase64, extracted);
+          openWishModalFromImage(imageSrc, extracted);
         };
         loadDataThenOpen();
         return;
