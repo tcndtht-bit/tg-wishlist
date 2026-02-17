@@ -7,10 +7,8 @@
   <link rel="icon" href="data:,">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script>
-    if (/eruda=true/.test(location.href) || /#eruda/.test(location.hash) || localStorage.getItem('eruda')) {
-      localStorage.setItem('eruda', '1');
-      (function(d,s){var e=d.createElement(s);e.src='https://cdn.jsdelivr.net/npm/eruda';e.onload=function(){eruda.init();};d.head.appendChild(e);})(document,'script');
-    }
+    function loadEruda(){try{localStorage.setItem('eruda','1');var e=document.createElement('script');e.src='https://cdn.jsdelivr.net/npm/eruda';e.onload=function(){eruda.init();};document.head.appendChild(e);}catch(x){}}
+    if(/eruda=true/.test(location.href)||/#eruda/.test(location.hash)||localStorage.getItem('eruda'))loadEruda();
   </script>
   <style>
     :root {
@@ -2937,6 +2935,8 @@
       setTimeout(() => { document.getElementById('inviteWlCopy').textContent = 'Копировать'; }, 2000);
     });
     document.getElementById('inviteWlModal').addEventListener('click', (e) => { if (e.target.id === 'inviteWlModal') e.target.classList.remove('open'); });
+
+    (function(){var h=document.getElementById('mainHeader');if(h){var t=0,n=0;h.addEventListener('click',function(){var now=Date.now();if(now-t>1200)n=0;t=now;n++;if(n>=5){n=0;if(typeof loadEruda==='function')loadEruda();}});}})();
 
     (async function init() {
       let content;
