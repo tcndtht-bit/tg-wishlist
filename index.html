@@ -583,7 +583,8 @@
     // --- API для анализа с главной (по фото / по ссылке): подставляется при деплое из GitHub Secret LINK_SCRAPER_URL ---
     const _apiFromDeploy = ('__LINK_SCRAPER_URL__'.indexOf('__') === 0 ? '' : '__LINK_SCRAPER_URL__'.replace(/\/$/, ''));
     const _apiFromQuery = (() => { const p = new URLSearchParams(location.search); const u = p.get('api'); return (u && u.startsWith('http')) ? u.replace(/\/$/, '') : ''; })();
-    const API_BASE_URL = _apiFromDeploy || _apiFromQuery;
+    const _raw = _apiFromDeploy || _apiFromQuery;
+    const API_BASE_URL = _raw && _raw.startsWith('http://') ? 'https' + _raw.slice(4) : _raw;
     const useSupabase = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
     function loadScript(src) {
       return new Promise((resolve, reject) => {
