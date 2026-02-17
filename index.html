@@ -1469,30 +1469,31 @@
         const overlay = document.getElementById('analysisOverlay');
         const overlayText = document.getElementById('analysisOverlayText');
         if (overlay) { overlay.classList.add('visible'); overlayText && (overlayText.textContent = 'Анализируем ссылку…'); }
-        try {
-          const ctrl = new AbortController();
-          const t = setTimeout(() => ctrl.abort(), 20000);
-          const r = await fetch(`/link-analyze?url=${encodeURIComponent(targetUrl)}`, { signal: ctrl.signal });
-          clearTimeout(t);
-          if (overlay) overlay.classList.remove('visible');
-          let extracted;
-          if (!r.ok) {
-            extracted = { name: 'N/A', price: null, currency: null, size: null, link: targetUrl, image: null };
-            safeShowAlert('Не удалось загрузить страницу. Заполни карточку вручную.');
-          } else {
-            extracted = await r.json();
-            if (extracted?.error) {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 45000);
+        fetch(`/link-analyze?url=${encodeURIComponent(targetUrl)}`, { signal: ctrl.signal })
+          .then((r) => { clearTimeout(t); if (overlay) overlay.classList.remove('visible'); return r; })
+          .then(async (r) => {
+            let extracted;
+            if (!r.ok) {
               extracted = { name: 'N/A', price: null, currency: null, size: null, link: targetUrl, image: null };
-              safeShowAlert('Ошибка при анализе. Заполни карточку вручную.');
+              safeShowAlert('Не удалось загрузить страницу. Заполни карточку вручную.');
+            } else {
+              extracted = await r.json();
+              if (extracted?.error) {
+                extracted = { name: 'N/A', price: null, currency: null, size: null, link: targetUrl, image: null };
+                safeShowAlert('Ошибка при анализе. Заполни карточку вручную.');
+              }
             }
-          }
-          openWishModalFromLink(extracted, targetUrl);
-        } catch (e) {
-          if (overlay) overlay.classList.remove('visible');
-          console.error('Ошибка анализа ссылки:', e);
-          safeShowAlert('Не удалось проанализировать ссылку. Добавь желание вручную.');
-          openWishModalFromLink({ name: 'N/A', price: null, currency: null, size: null, link: targetUrl, image: null }, targetUrl);
-        }
+            openWishModalFromLink(extracted, targetUrl);
+          })
+          .catch((e) => {
+            clearTimeout(t);
+            if (overlay) overlay.classList.remove('visible');
+            console.error('Ошибка анализа ссылки:', e);
+            safeShowAlert('Не удалось проанализировать ссылку. Добавь желание вручную.');
+            openWishModalFromLink({ name: 'N/A', price: null, currency: null, size: null, link: targetUrl, image: null }, targetUrl);
+          });
         return;
       }
       if (startParam && (startParam.startsWith('w_') || startParam.startsWith('i_'))) {
