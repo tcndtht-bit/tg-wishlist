@@ -1002,81 +1002,74 @@
         if (!payload || !payload.n) {
           isLoading = false; currentView = 'main'; render(); return;
         }
-        const loadData = async () => {
-          await ensureUser();
-          if (useSupabase && sb) {
-            const wlRes = await loadWishlistsFromSupabase();
-            if (wlRes.data) wishlists = wlRes.data;
-            wishes = await loadWishesFromSupabase(new Set(wishlists.map((w) => w.id)));
-            wishes = Array.isArray(wishes) ? wishes : [];
-            const cats = await loadCategoriesFromSupabase();
-            categories = Array.isArray(cats) && cats.length ? cats : [...DEFAULT_CATS];
-          } else {
-            wishes = loadWishesSync(); wishes = Array.isArray(wishes) ? wishes : [];
-            try { wishlists = (JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
-            wishlists = Array.isArray(wishlists) ? wishlists : [];
-            try { const raw = safeGetItem(CATS_KEY); categories = raw ? JSON.parse(raw) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
-            categories = Array.isArray(categories) ? categories : [...DEFAULT_CATS];
-          }
-        };
-        await loadData();
-        isLoading = false; currentView = 'main'; render();
+        isLoading = true; currentView = 'main'; render();
         const extracted = { name: payload.n || 'N/A', price: payload.p ?? null, currency: payload.c ?? null, size: payload.s ?? null };
-        let imageBase64 = PLACEHOLDER_IMAGE;
-        if (payload.imgUrl && payload.imgUrl.startsWith('https://api.telegram.org/')) {
+        const loadDataThenOpen = async () => {
           try {
-            const r = await fetch(`/image-proxy?url=${encodeURIComponent(payload.imgUrl)}`);
-            if (r.ok) { const d = await r.json(); if (d.base64) imageBase64 = d.base64; }
+            await Promise.race([
+              (async () => {
+                await ensureUser();
+                if (useSupabase && sb) {
+                  const wlRes = await loadWishlistsFromSupabase();
+                  if (wlRes.data) wishlists = wlRes.data;
+                  wishes = await loadWishesFromSupabase(new Set(wishlists.map((w) => w.id)));
+                  wishes = Array.isArray(wishes) ? wishes : [];
+                  const cats = await loadCategoriesFromSupabase();
+                  categories = Array.isArray(cats) && cats.length ? cats : [...DEFAULT_CATS];
+                } else {
+                  wishes = loadWishesSync(); wishes = Array.isArray(wishes) ? wishes : [];
+                  try { wishlists = (JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
+                  wishlists = Array.isArray(wishlists) ? wishlists : [];
+                  try { const raw = safeGetItem(CATS_KEY); categories = raw ? JSON.parse(raw) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
+                  categories = Array.isArray(categories) ? categories : [...DEFAULT_CATS];
+                }
+              })(),
+              new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000))
+            ]);
           } catch (_) {}
-        }
-        openWishModalFromImage(imageBase64, extracted);
+          isLoading = false; render();
+          openWishModalFromImage(PLACEHOLDER_IMAGE, extracted);
+        };
+        loadDataThenOpen();
         return;
       }
       if (startParam && startParam.startsWith('text_')) {
         const payload = unpackStartParam(startParam.slice(5));
         if (!payload || !payload.n) { isLoading = false; currentView = 'main'; render(); return; }
-        const loadDataForText = async () => {
-          await ensureUser();
-          if (useSupabase && sb) {
-            const wlRes = await loadWishlistsFromSupabase();
-            if (wlRes.data) wishlists = wlRes.data;
-            wishes = await loadWishesFromSupabase(new Set(wishlists.map((w) => w.id)));
-            wishes = Array.isArray(wishes) ? wishes : [];
-            const cats = await loadCategoriesFromSupabase();
-            categories = Array.isArray(cats) && cats.length ? cats : [...DEFAULT_CATS];
-          } else {
-            wishes = loadWishesSync(); wishes = Array.isArray(wishes) ? wishes : [];
-            try { wishlists = (JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
-            try { const raw = safeGetItem(CATS_KEY); categories = raw ? JSON.parse(raw) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
-          }
-        };
-        await loadDataForText();
-        isLoading = false; currentView = 'main'; render();
+        isLoading = true; currentView = 'main'; render();
         const extracted = { name: payload.n || 'Желание', price: payload.p ?? null, currency: payload.c ?? null, size: payload.s ?? null };
-        openWishModalFromText(extracted);
+        const loadDataThenOpen = async () => {
+          try {
+            await Promise.race([
+              (async () => {
+                await ensureUser();
+                if (useSupabase && sb) {
+                  const wlRes = await loadWishlistsFromSupabase();
+                  if (wlRes.data) wishlists = wlRes.data;
+                  wishes = await loadWishesFromSupabase(new Set(wishlists.map((w) => w.id)));
+                  wishes = Array.isArray(wishes) ? wishes : [];
+                  const cats = await loadCategoriesFromSupabase();
+                  categories = Array.isArray(cats) && cats.length ? cats : [...DEFAULT_CATS];
+                } else {
+                  wishes = loadWishesSync(); wishes = Array.isArray(wishes) ? wishes : [];
+                  try { wishlists = (JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
+                  try { const raw = safeGetItem(CATS_KEY); categories = raw ? JSON.parse(raw) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
+                }
+              })(),
+              new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000))
+            ]);
+          } catch (_) {}
+          isLoading = false; render();
+          openWishModalFromText(extracted);
+        };
+        loadDataThenOpen();
         return;
       }
       if (startParam && startParam.startsWith('link_')) {
         const payload = unpackStartParam(startParam.slice(5));
         if (!payload || !payload.l) { isLoading = false; currentView = 'main'; render(); return; }
         const targetUrl = payload.l;
-        const loadDataForLink = async () => {
-          await ensureUser();
-          if (useSupabase && sb) {
-            const wlRes = await loadWishlistsFromSupabase();
-            if (wlRes.data) wishlists = wlRes.data;
-            wishes = await loadWishesFromSupabase(new Set(wishlists.map((w) => w.id)));
-            wishes = Array.isArray(wishes) ? wishes : [];
-            const cats = await loadCategoriesFromSupabase();
-            categories = Array.isArray(cats) && cats.length ? cats : [...DEFAULT_CATS];
-          } else {
-            wishes = loadWishesSync(); wishes = Array.isArray(wishes) ? wishes : [];
-            try { wishlists = (JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
-            try { const raw = safeGetItem(CATS_KEY); categories = raw ? JSON.parse(raw) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
-          }
-        };
-        await loadDataForLink();
-        isLoading = false; currentView = 'main'; render();
+        isLoading = true; currentView = 'main'; render();
         const extracted = {
           name: payload.n || 'N/A',
           price: payload.p ?? null,
@@ -1086,7 +1079,31 @@
           image: payload.i || null,
           imageBase64: null
         };
-        openWishModalFromLink(extracted, targetUrl);
+        const loadDataThenOpen = async () => {
+          try {
+            await Promise.race([
+              (async () => {
+                await ensureUser();
+                if (useSupabase && sb) {
+                  const wlRes = await loadWishlistsFromSupabase();
+                  if (wlRes.data) wishlists = wlRes.data;
+                  wishes = await loadWishesFromSupabase(new Set(wishlists.map((w) => w.id)));
+                  wishes = Array.isArray(wishes) ? wishes : [];
+                  const cats = await loadCategoriesFromSupabase();
+                  categories = Array.isArray(cats) && cats.length ? cats : [...DEFAULT_CATS];
+                } else {
+                  wishes = loadWishesSync(); wishes = Array.isArray(wishes) ? wishes : [];
+                  try { wishlists = (JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
+                  try { const raw = safeGetItem(CATS_KEY); categories = raw ? JSON.parse(raw) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
+                }
+              })(),
+              new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000))
+            ]);
+          } catch (_) {}
+          isLoading = false; render();
+          openWishModalFromLink(extracted, targetUrl);
+        };
+        loadDataThenOpen();
         return;
       }
       if (startParam && (startParam.startsWith('w_') || startParam.startsWith('i_'))) {
