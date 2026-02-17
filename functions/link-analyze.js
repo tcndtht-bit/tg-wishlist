@@ -3,8 +3,9 @@
  * Fetch страницы → парсинг og:* / JSON-LD → при необходимости LLM (OpenRouter/Groq)
  */
 const USER_AGENT =
-  "Mozilla/5.0 (compatible; WishlistBot/1.0; +https://pages.dev)";
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 const MAX_HTML = 80000;
+const FETCH_TIMEOUT = 20000;
 const LLM_PROMPT = `Проанализируй текст страницы товара и извлеки информацию. Верни ТОЛЬКО валидный JSON без пояснений:
 {"name":"строка","price":число или null,"currency":"строка или null","size":"строка или null"}
 
@@ -14,17 +15,56 @@ const LLM_PROMPT = `Проанализируй текст страницы то�
 
 function extractMeta(html, name) {
   const re = new RegExp(
-    `<meta[^>]+(?:property|name)=["']${name}["'][^>]+content=["']([^"']+)["']`,
+    `<meta[^>]+(?:property|name)=["']${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["'][^>]+content=["']([^"']+)["']`,
     "i"
   );
   const m = html.match(re);
   if (m) return m[1];
   const re2 = new RegExp(
-    `<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${name}["']`,
+    `<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["']`,
     "i"
   );
   const m2 = html.match(re2);
   return m2 ? m2[1] : null;
+}
+
+function extractPriceFromHtml(html) {
+  const patterns = [
+    /"price"\s*:\s*["']?(\d+(?:[.,]\d+)?)["']?/i,
+    /"price"\s*:\s*(\d+(?:[.,]\d+)?)/,
+    /"currentPrice"\s*:\s*["']?(\d+(?:[.,]\d+)?)["']?/i,
+    /data-price=["'](\d+(?:[.,]\d+)?)["']/i,
+    /itemprop="price"\s+content=["'](\d+(?:[.,]\d+)?)["']/i,
+    /content=["'](\d+(?:[.,]\d+)?)["'][^>]+itemprop="price"/i,
+    /__NEXT_DATA__[\s\S]*?"price"\s*:\s*["']?(\d+(?:[.,]\d+)?)["']?/i,
+  ];
+  for (const p of patterns) {
+    const m = html.match(p);
+    if (m) return parseFloat(String(m[1]).replace(",", "."));
+  }
+  return null;
+}
+
+function extractCurrencyFromHtml(html) {
+  const m = html.match(/"priceCurrency"\s*:\s*["']([A-Z]{3})["']/i);
+  if (m) {
+    const c = m[1];
+    if (/BYN|Br/i.test(c)) return "Br";
+    if (/RUB/i.test(c)) return "₽";
+    if (/USD/i.test(c)) return "$";
+    if (/EUR/i.test(c)) return "€";
+    if (/KZT/i.test(c)) return "₸";
+    return c;
+  }
+  const m2 = html.match(/\b(BYN|Br|₽|руб\.?|RUB|USD|\$|EUR|€)\b/i);
+  if (m2) {
+    const c = m2[1];
+    if (/BYN|Br/i.test(c)) return "Br";
+    if (/RUB|₽|руб/i.test(c)) return "₽";
+    if (/USD|\$/i.test(c)) return "$";
+    if (/EUR|€/i.test(c)) return "€";
+  }
+  return null;
 }
 
 function extractTitle(html) {
@@ -50,6 +90,30 @@ function extractJsonLd(html) {
     } catch {}
   }
   return null;
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+async function fetchImageAsBase64(imageUrl, baseUrl) {
+  try {
+    const url = imageUrl.startsWith("http") ? imageUrl : new URL(imageUrl, baseUrl).href;
+    const res = await fetch(url, {
+      headers: { "User-Agent": USER_AGENT },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    const ct = res.headers.get("content-type") || "image/jpeg";
+    if (!/^image\/(jpeg|png|webp|gif)/i.test(ct)) return null;
+    return `data:${ct};base64,${arrayBufferToBase64(buf)}`;
+  } catch {
+    return null;
+  }
 }
 
 function stripHtml(html) {
@@ -102,15 +166,33 @@ export async function onRequestGet(context) {
     return jsonResponse({ error: "Only https URLs allowed" }, 400);
   }
 
+  let html = null;
   try {
     const res = await fetch(targetUrl, {
-      headers: { "User-Agent": USER_AGENT },
-      signal: AbortSignal.timeout(15000),
+      headers: {
+        "User-Agent": USER_AGENT,
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
+      },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    let html = await res.text();
+    html = await res.text();
     if (html.length > MAX_HTML) html = html.slice(0, MAX_HTML);
+  } catch (e) {
+    console.error("link-analyze fetch error:", e);
+    return jsonResponse({
+      name: "N/A",
+      price: null,
+      currency: null,
+      size: null,
+      link: targetUrl,
+      image: null,
+      _fallback: true,
+    });
+  }
 
+  try {
     const title = extractTitle(html);
     const ogTitle = extractMeta(html, "og:title");
     const ogImage = extractMeta(html, "og:image");
@@ -120,12 +202,12 @@ export async function onRequestGet(context) {
     const jsonLd = extractJsonLd(html);
 
     let name = ogTitle || jsonLd?.name || title || "N/A";
-    let price = ogPrice ? parseFloat(ogPrice) : jsonLd?.offers?.price ?? jsonLd?.offers?.[0]?.price ?? null;
-    let currency = ogCurrency || jsonLd?.offers?.priceCurrency || jsonLd?.offers?.[0]?.priceCurrency || null;
-    let size = jsonLd?.size || jsonLd?.additionalProperty?.find((p) => p.name === "Размер" || p.name === "Size")?.value || null;
+    let price = ogPrice ? parseFloat(ogPrice) : jsonLd?.offers?.price ?? jsonLd?.offers?.[0]?.price ?? extractPriceFromHtml(html);
+    let currency = ogCurrency || jsonLd?.offers?.priceCurrency || jsonLd?.offers?.[0]?.priceCurrency ?? extractCurrencyFromHtml(html);
+    let size = jsonLd?.size || jsonLd?.additionalProperty?.find((p) => p.name === "Размер" || p.name === "Size")?.value ?? null;
 
-    const needLLM = !price || !name || name === "N/A";
-    if (needLLM) {
+    const needLLM = (!price && !name) || name === "N/A";
+    if (needLLM && context.env) {
       const text = [title, ogTitle, ogDesc, stripHtml(html)].filter(Boolean).join("\n\n");
       const llm = await callLLM(text, context.env);
       if (llm) {
@@ -136,22 +218,34 @@ export async function onRequestGet(context) {
       }
     }
 
+    const imageUrl = ogImage || jsonLd?.image || (Array.isArray(jsonLd?.image) ? jsonLd.image[0] : null) || null;
+    let imageBase64 = null;
+    if (imageUrl) {
+      imageBase64 = await fetchImageAsBase64(imageUrl, targetUrl);
+    }
+
     const result = {
       name: typeof name === "string" ? name : "N/A",
       price: typeof price === "number" && !isNaN(price) ? price : null,
       currency: typeof currency === "string" ? currency : null,
       size: typeof size === "string" ? size : null,
       link: targetUrl,
-      image: ogImage || jsonLd?.image || (Array.isArray(jsonLd?.image) ? jsonLd.image[0] : null) || null,
+      image: imageUrl,
+      imageBase64: imageBase64 || null,
     };
 
     return jsonResponse(result);
   } catch (e) {
-    console.error("link-analyze error:", e);
-    return jsonResponse(
-      { error: "Failed to fetch or parse page", message: String(e?.message || e) },
-      502
-    );
+    console.error("link-analyze parse error:", e);
+    return jsonResponse({
+      name: "N/A",
+      price: null,
+      currency: null,
+      size: null,
+      link: targetUrl,
+      image: null,
+      _fallback: true,
+    });
   }
 }
 

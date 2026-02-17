@@ -1472,14 +1472,23 @@
           const r = await fetch(`/link-analyze?url=${encodeURIComponent(targetUrl)}`, { signal: ctrl.signal });
           clearTimeout(t);
           if (overlay) overlay.classList.remove('visible');
-          if (!r.ok) throw new Error('Link analyze failed');
-          const extracted = await r.json();
-          if (extracted?.error) throw new Error(extracted.message || extracted.error);
+          let extracted;
+          if (!r.ok) {
+            extracted = { name: 'N/A', price: null, currency: null, size: null, link: targetUrl, image: null };
+            safeShowAlert('Не удалось загрузить страницу. Заполни карточку вручную.');
+          } else {
+            extracted = await r.json();
+            if (extracted?.error) {
+              extracted = { name: 'N/A', price: null, currency: null, size: null, link: targetUrl, image: null };
+              safeShowAlert('Ошибка при анализе. Заполни карточку вручную.');
+            }
+          }
           openWishModalFromLink(extracted, targetUrl);
         } catch (e) {
           if (overlay) overlay.classList.remove('visible');
           console.error('Ошибка анализа ссылки:', e);
           safeShowAlert('Не удалось проанализировать ссылку. Добавь желание вручную.');
+          openWishModalFromLink({ name: 'N/A', price: null, currency: null, size: null, link: targetUrl, image: null }, targetUrl);
         }
         return;
       }
@@ -1725,14 +1734,23 @@
             const r = await fetch(`/link-analyze?url=${encodeURIComponent(url)}`, { signal: ctrl.signal });
             clearTimeout(t);
             if (overlay) overlay.classList.remove('visible');
-            if (!r.ok) throw new Error('Link analyze failed');
-            const extracted = await r.json();
-            if (extracted?.error) throw new Error(extracted.message || extracted.error);
+            let extracted;
+            if (!r.ok) {
+              extracted = { name: 'N/A', price: null, currency: null, size: null, link: url, image: null };
+              safeShowAlert('Не удалось загрузить страницу. Заполни карточку вручную.');
+            } else {
+              extracted = await r.json();
+              if (extracted?.error) {
+                extracted = { name: 'N/A', price: null, currency: null, size: null, link: url, image: null };
+                safeShowAlert('Ошибка при анализе. Заполни карточку вручную.');
+              }
+            }
             openWishModalFromLink(extracted, url);
           } catch (err) {
             if (overlay) overlay.classList.remove('visible');
             console.error('Ошибка анализа ссылки:', err);
             safeShowAlert('Не удалось проанализировать ссылку. Добавь желание вручную.');
+            openWishModalFromLink({ name: 'N/A', price: null, currency: null, size: null, link: url, image: null }, url);
           }
         });
       }
@@ -2513,19 +2531,21 @@
     function openWishModalFromLink(extractedData, link) {
       window._wishFromLink = true;
       tg?.HapticFeedback?.impactOccurred?.('light');
-      pendingImageBase64 = null;
+      const imgSrc = extractedData?.imageBase64 || extractedData?.image || null;
+      pendingImageBase64 = extractedData?.imageBase64 || null;
       const form = document.getElementById('wishForm');
       form.reset();
       document.getElementById('wishId').value = '';
       const imgPreview = document.getElementById('imgPreview');
-      if (extractedData?.image) {
-        imgPreview.src = extractedData.image;
+      if (imgSrc) {
+        imgPreview.src = imgSrc;
         imgPreview.style.display = 'block';
-        imgPreview.onerror = () => { imgPreview.style.display = 'none'; };
+        imgPreview.onerror = () => { imgPreview.style.display = 'none'; pendingImageBase64 = null; };
+        document.getElementById('imgUploadText').textContent = 'Изменить фото';
       } else {
         imgPreview.style.display = 'none';
+        document.getElementById('imgUploadText').textContent = 'Нажми или перетащи фото';
       }
-      document.getElementById('imgUploadText').textContent = 'Нажми или перетащи фото';
       ['imgError','nameError','linkError','priceError','sizeError'].forEach((id) => {
         const el = document.getElementById(id);
         if (el) { el.style.display = 'none'; el.textContent = ''; }
