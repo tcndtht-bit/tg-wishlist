@@ -576,9 +576,9 @@
   </div>
 
   <script>
-    // --- Supabase: вставь свои данные из Project Settings → API ---
-    const SUPABASE_URL = 'https://ieounwqtaxpozwdgbwpn.supabase.co';
-    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imllb3Vud3F0YXhwb3p3ZGdid3BuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExMjI5ODgsImV4cCI6MjA4NjY5ODk4OH0.axb4HUzkz-VZ2pJZOR08gY-q4Na3U1gcxbK2eLtZRcg';
+    // --- Supabase: подставляются при деплое из GitHub Secrets (SUPABASE_URL, SUPABASE_ANON_KEY) ---
+    const SUPABASE_URL = '__SUPABASE_URL__';
+    const SUPABASE_ANON_KEY = '__SUPABASE_ANON_KEY__';
     let sb = null;
     const useSupabase = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
     function loadScript(src) {
