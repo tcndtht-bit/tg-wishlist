@@ -24,11 +24,13 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          LINK_SCRAPER_URL: ${{ secrets.LINK_SCRAPER_URL }}
         run: |
           mkdir -p _site
           cp index.html _site/
           if [ -n "$SUPABASE_URL" ]; then sed -i "s|__SUPABASE_URL__|$SUPABASE_URL|g" _site/index.html; fi
           if [ -n "$SUPABASE_ANON_KEY" ]; then sed -i "s|__SUPABASE_ANON_KEY__|$SUPABASE_ANON_KEY|g" _site/index.html; fi
+          if [ -n "$LINK_SCRAPER_URL" ]; then sed -i "s|__LINK_SCRAPER_URL__|$LINK_SCRAPER_URL|g" _site/index.html; fi
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

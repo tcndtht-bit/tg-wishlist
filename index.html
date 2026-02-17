@@ -580,6 +580,8 @@
     const SUPABASE_URL = '__SUPABASE_URL__';
     const SUPABASE_ANON_KEY = '__SUPABASE_ANON_KEY__';
     let sb = null;
+    // --- API для анализа с главной (по фото / по ссылке): подставляется при деплое из GitHub Secret LINK_SCRAPER_URL ---
+    const API_BASE_URL = ('__LINK_SCRAPER_URL__'.indexOf('__') === 0 ? '' : '__LINK_SCRAPER_URL__'.replace(/\/$/, ''));
     const useSupabase = !!(SUPABASE_URL && SUPABASE_ANON_KEY);
     function loadScript(src) {
       return new Promise((resolve, reject) => {
@@ -1319,8 +1321,28 @@
           try {
             let imageBase64 = await fileToBase64(file);
             imageBase64 = await resizeImageBase64(imageBase64, 1280, 0.85);
-            openWishModalFromImage(imageBase64, { name: '', price: null, currency: null, size: null });
+            let extracted = { name: '', price: null, currency: null, size: null };
+            if (API_BASE_URL && API_BASE_URL.startsWith('http')) {
+              const overlay = document.getElementById('analysisOverlay');
+              const overlayText = document.getElementById('analysisOverlayText');
+              if (overlay) { overlay.classList.add('visible'); overlayText && (overlayText.textContent = 'Анализируем изображение…'); }
+              try {
+                const b64 = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+                const r = await fetch(API_BASE_URL + '/analyze-image', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ image: b64 }),
+                });
+                if (r.ok) {
+                  const data = await r.json();
+                  extracted = { name: data.name || '', price: data.price ?? null, currency: data.currency ?? null, size: data.size ?? null };
+                }
+              } catch (_) {}
+              if (overlay) overlay.classList.remove('visible');
+            }
+            openWishModalFromImage(imageBase64, extracted);
           } catch (err) {
+            document.getElementById('analysisOverlay')?.classList.remove('visible');
             console.error('Ошибка загрузки фото:', err);
             safeShowAlert('Не удалось загрузить изображение.');
           }
@@ -1333,7 +1355,29 @@
             if (url) safeShowAlert('Укажи ссылку, начинающуюся с https://');
             return;
           }
-          openWishModalFromLink({ name: '', price: null, currency: null, size: null, link: url, image: null }, url);
+          let extracted = { name: '', price: null, currency: null, size: null, link: url, image: null };
+          if (API_BASE_URL && API_BASE_URL.startsWith('http')) {
+            const overlay = document.getElementById('analysisOverlay');
+            const overlayText = document.getElementById('analysisOverlayText');
+            if (overlay) { overlay.classList.add('visible'); overlayText && (overlayText.textContent = 'Анализируем ссылку…'); }
+            try {
+              const r = await fetch(API_BASE_URL + '/?url=' + encodeURIComponent(url), { signal: AbortSignal.timeout(45000) });
+              if (r.ok) {
+                const data = await r.json();
+                extracted = {
+                  name: data.name || '',
+                  price: data.price ?? null,
+                  currency: data.currency ?? null,
+                  size: data.size ?? null,
+                  link: url,
+                  image: data.image || null,
+                  imageBase64: data.imageBase64 || null,
+                };
+              }
+            } catch (_) {}
+            if (overlay) overlay.classList.remove('visible');
+          }
+          openWishModalFromLink(extracted, url);
         });
       }
     }
