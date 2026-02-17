@@ -202,9 +202,9 @@ export async function onRequestGet(context) {
     const jsonLd = extractJsonLd(html);
 
     let name = ogTitle || jsonLd?.name || title || "N/A";
-    let price = ogPrice ? parseFloat(ogPrice) : jsonLd?.offers?.price ?? jsonLd?.offers?.[0]?.price ?? extractPriceFromHtml(html);
-    let currency = ogCurrency || jsonLd?.offers?.priceCurrency || jsonLd?.offers?.[0]?.priceCurrency ?? extractCurrencyFromHtml(html);
-    let size = jsonLd?.size || jsonLd?.additionalProperty?.find((p) => p.name === "Размер" || p.name === "Size")?.value ?? null;
+    let price = ogPrice ? parseFloat(ogPrice) : (jsonLd?.offers?.price ?? jsonLd?.offers?.[0]?.price ?? extractPriceFromHtml(html));
+    let currency = (ogCurrency || jsonLd?.offers?.priceCurrency || jsonLd?.offers?.[0]?.priceCurrency) ?? extractCurrencyFromHtml(html);
+    let size = (jsonLd?.size || jsonLd?.additionalProperty?.find((p) => p.name === "Размер" || p.name === "Size")?.value) ?? null;
 
     const needLLM = (!price && !name) || name === "N/A";
     if (needLLM && context.env) {
