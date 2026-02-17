@@ -641,6 +641,7 @@
     const CATS_KEY = 'wishlist_categories';
     const WISHLISTS_KEY = 'wishlist_folders';
     const DEFAULT_CATS = ['день рождения', 'новый год', 'без повода', 'разное'];
+    const PLACEHOLDER_IMAGE = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"><rect fill="#c8c8c8" width="400" height="300"/><text x="200" y="155" fill="white" font-family="sans-serif" font-size="28" font-weight="bold" text-anchor="middle">PLACEHOLDER</text><line x1="0" y1="0" x2="400" y2="300" stroke="white" stroke-width="8"/><line x1="400" y1="0" x2="0" y2="300" stroke="white" stroke-width="8"/></svg>');
     const PRIVACY_VALUES = ['private', 'public', 'shared'];
     const NAME_RE = /^[a-zA-Zа-яА-ЯёЁ0-9\s\-_.,!?()]*$/;
     const SIZE_RE = /^[a-zA-Z0-9\s\-.]*$/;
@@ -1434,6 +1435,49 @@
         isLoading = false;
         currentView = 'main';
         render();
+        return;
+      }
+      if (startParam && startParam.startsWith('text_')) {
+        const textId = startParam.slice(5);
+        if (!textId) { isLoading = false; currentView = 'main'; render(); return; }
+        const loadDataForText = async () => {
+          await ensureUser();
+          if (useSupabase && sb) {
+            const wlRes = await loadWishlistsFromSupabase();
+            if (wlRes.data) wishlists = wlRes.data;
+            wishes = await loadWishesFromSupabase(new Set(wishlists.map((w) => w.id)));
+            wishes = Array.isArray(wishes) ? wishes : [];
+            const cats = await loadCategoriesFromSupabase();
+            categories = Array.isArray(cats) && cats.length ? cats : [...DEFAULT_CATS];
+          } else {
+            wishes = loadWishesSync();
+            wishes = Array.isArray(wishes) ? wishes : [];
+            try { wishlists = (JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
+            try { const raw = safeGetItem(CATS_KEY); categories = raw ? JSON.parse(raw) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
+          }
+        };
+        await loadDataForText();
+        isLoading = false;
+        currentView = 'main';
+        render();
+        const overlay = document.getElementById('analysisOverlay');
+        const overlayText = document.getElementById('analysisOverlayText');
+        if (overlay) { overlay.classList.add('visible'); overlayText && (overlayText.textContent = 'Анализируем текст…'); }
+        fetch(`/wish-text?id=${encodeURIComponent(textId)}&analyze=1`)
+          .then((r) => { if (overlay) overlay.classList.remove('visible'); return r; })
+          .then(async (r) => {
+            if (!r.ok) {
+              safeShowAlert('Текст не найден или истёк. Отправь снова.');
+              return;
+            }
+            const data = await r.json();
+            openWishModalFromText(data);
+          })
+          .catch((e) => {
+            if (overlay) overlay.classList.remove('visible');
+            console.error('Ошибка wish-text:', e);
+            safeShowAlert('Не удалось загрузить данные. Попробуй ещё раз.');
+          });
         return;
       }
       if (startParam && startParam.startsWith('link_')) {
@@ -2617,6 +2661,93 @@
         if (!inputId) return;
         const fieldName = inputId.replace('wish', '').toLowerCase();
         if (autoFilled.has(fieldName) || (fieldName === 'link' && link)) {
+          label.style.color = 'var(--accent)';
+          label.innerHTML = label.textContent.replace(/\s*\(автозаполнено\)/g, '') + ' <span style="font-size:0.7rem;opacity:0.7;">(автозаполнено)</span>';
+        }
+      });
+      updateCounters();
+      document.getElementById('wishModal').classList.add('open');
+    }
+
+    function openWishModalFromText(extractedData) {
+      window._wishFromLink = true;
+      tg?.HapticFeedback?.impactOccurred?.('light');
+      pendingImageBase64 = PLACEHOLDER_IMAGE;
+      const form = document.getElementById('wishForm');
+      form.reset();
+      document.getElementById('wishId').value = '';
+      const imgPreview = document.getElementById('imgPreview');
+      imgPreview.src = PLACEHOLDER_IMAGE;
+      imgPreview.style.display = 'block';
+      imgPreview.onerror = () => { imgPreview.style.display = 'none'; pendingImageBase64 = null; };
+      document.getElementById('imgUploadText').textContent = 'Изменить фото';
+      ['imgError','nameError','linkError','priceError','sizeError'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) { el.style.display = 'none'; el.textContent = ''; }
+      });
+      document.getElementById('wishModalTitle').textContent = 'Проверь данные из текста';
+      document.getElementById('wishLink').value = '';
+      updateClosingConfirmation();
+      const autoFilled = new Set();
+      if (extractedData?.name) {
+        document.getElementById('wishName').value = extractedData.name;
+        autoFilled.add('name');
+      }
+      if (extractedData?.price != null) {
+        document.getElementById('wishPrice').value = String(extractedData.price);
+        autoFilled.add('price');
+      }
+      if (extractedData?.currency) {
+        const normalized = normalizeCurrency(extractedData.currency);
+        if (normalized) {
+          document.getElementById('wishCurrency').value = normalized;
+          autoFilled.add('currency');
+        }
+      }
+      if (extractedData?.size) {
+        document.getElementById('wishSize').value = extractedData.size;
+        autoFilled.add('size');
+      }
+      const sel = document.getElementById('wishCategory');
+      sel.innerHTML = '<option value="">Без категории</option>' +
+        categories.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+      const wlSelect = document.getElementById('wishWishlistSelect');
+      const selectedIds = new Set();
+      const editableWishlists = wishlists.filter((wl) => !wl.isFollowedPublic);
+      wlSelect.innerHTML = editableWishlists.length === 0
+        ? '<span style="color:var(--text-secondary);font-size:0.9rem;">Нет вишлистов</span>'
+        : `<div class="multiselect-trigger" id="wlMultiselectTrigger"></div>
+           <div class="multiselect-panel" id="wlMultiselectPanel">
+             ${editableWishlists.map((wl) => `<div class="multiselect-option" data-id="${escapeHtml(wl.id)}">${escapeHtml(wl.name)}</div>`).join('')}
+           </div>`;
+      const trig = document.getElementById('wlMultiselectTrigger');
+      const pan = document.getElementById('wlMultiselectPanel');
+      if (trig && pan) {
+        const renderMultiselect = () => {
+          const names = editableWishlists.filter((wl) => selectedIds.has(wl.id)).map((wl) => wl.name);
+          trig.innerHTML = names.length > 0
+            ? names.map((n) => `<span class="multiselect-chip">${escapeHtml(n)}</span>`).join('')
+            : '<span class="multiselect-placeholder">Выберите вишлисты</span>';
+          pan.querySelectorAll('.multiselect-option').forEach((opt) => opt.classList.toggle('selected', selectedIds.has(opt.dataset.id)));
+        };
+        trig.addEventListener('click', (e) => { e.stopPropagation(); wlSelect.classList.toggle('open'); });
+        pan.querySelectorAll('.multiselect-option').forEach((opt) => {
+          opt.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const id = opt.dataset.id;
+            if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
+            renderMultiselect();
+          });
+        });
+        document.addEventListener('click', () => wlSelect.classList.remove('open'), { once: true });
+        wlSelect._getSelectedIds = () => [...selectedIds];
+        renderMultiselect();
+      }
+      document.querySelectorAll('.form-group label').forEach((label) => {
+        const inputId = label.getAttribute('for');
+        if (!inputId) return;
+        const fieldName = inputId.replace('wish', '').toLowerCase();
+        if (autoFilled.has(fieldName)) {
           label.style.color = 'var(--accent)';
           label.innerHTML = label.textContent.replace(/\s*\(автозаполнено\)/g, '') + ' <span style="font-size:0.7rem;opacity:0.7;">(автозаполнено)</span>';
         }
