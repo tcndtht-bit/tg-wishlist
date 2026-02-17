@@ -2,10 +2,12 @@
  * Cloudflare Pages Function: анализ ссылки на товар
  * Fetch страницы → парсинг og:* / JSON-LD → при необходимости LLM (OpenRouter/Groq)
  */
-const USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+const USER_AGENTS = [
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+];
 const MAX_HTML = 80000;
-const FETCH_TIMEOUT = 20000;
+const FETCH_TIMEOUT = 25000;
 const LLM_PROMPT = `Проанализируй текст страницы товара и извлеки информацию. Верни ТОЛЬКО валидный JSON без пояснений:
 {"name":"строка","price":число или null,"currency":"строка или null","size":"строка или null"}
 
@@ -103,7 +105,7 @@ async function fetchImageAsBase64(imageUrl, baseUrl) {
   try {
     const url = imageUrl.startsWith("http") ? imageUrl : new URL(imageUrl, baseUrl).href;
     const res = await fetch(url, {
-      headers: { "User-Agent": USER_AGENT },
+      headers: { "User-Agent": USER_AGENTS[0] },
       signal: AbortSignal.timeout(10000),
     });
     if (!res.ok) return null;
@@ -167,20 +169,61 @@ export async function onRequestGet(context) {
   }
 
   let html = null;
-  try {
-    const res = await fetch(targetUrl, {
-      headers: {
-        "User-Agent": USER_AGENT,
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
-      },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    html = await res.text();
-    if (html.length > MAX_HTML) html = html.slice(0, MAX_HTML);
-  } catch (e) {
-    console.error("link-analyze fetch error:", e);
+  for (const ua of USER_AGENTS) {
+    try {
+      const res = await fetch(targetUrl, {
+        headers: {
+          "User-Agent": ua,
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
+          "Sec-Fetch-Dest": "document",
+          "Sec-Fetch-Mode": "navigate",
+          "Sec-Fetch-Site": "none",
+        },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      html = await res.text();
+      if (html.length > MAX_HTML) html = html.slice(0, MAX_HTML);
+      break;
+    } catch (e) {
+      if (ua !== USER_AGENTS[USER_AGENTS.length - 1]) continue;
+      const scraperUrl = context.env?.LINK_SCRAPER_URL;
+      if (scraperUrl) {
+        try {
+          const r = await fetch(`${scraperUrl}/?url=${encodeURIComponent(targetUrl)}`, {
+            signal: AbortSignal.timeout(FETCH_TIMEOUT),
+          });
+          if (r.ok) {
+            const data = await r.json();
+            return jsonResponse({
+              name: data.name ?? "N/A",
+              price: data.price ?? null,
+              currency: data.currency ?? null,
+              size: data.size ?? null,
+              link: targetUrl,
+              image: data.image ?? null,
+              imageBase64: data.imageBase64 ?? null,
+            });
+          }
+        } catch (sr) {
+          console.error("link-scraper fallback error:", sr);
+        }
+      }
+      return jsonResponse({
+        name: "N/A",
+        price: null,
+        currency: null,
+        size: null,
+        link: targetUrl,
+        image: null,
+        imageBase64: null,
+        _fallback: true,
+      });
+    }
+  }
+
+  if (!html) {
     return jsonResponse({
       name: "N/A",
       price: null,
@@ -188,6 +231,7 @@ export async function onRequestGet(context) {
       size: null,
       link: targetUrl,
       image: null,
+      imageBase64: null,
       _fallback: true,
     });
   }

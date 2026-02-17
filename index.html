@@ -1439,7 +1439,10 @@
       if (startParam && startParam.startsWith('link_')) {
         const encodedUrl = startParam.slice(5);
         let targetUrl;
-        try { targetUrl = decodeURIComponent(encodedUrl); } catch (_) { targetUrl = null; }
+        try {
+          targetUrl = decodeURIComponent(encodedUrl);
+          if (/%[0-9A-Fa-f]{2}/.test(targetUrl)) targetUrl = decodeURIComponent(targetUrl);
+        } catch (_) { targetUrl = null; }
         if (!targetUrl || !targetUrl.startsWith('https://')) {
           isLoading = false; currentView = 'main'; render(); return;
         }
