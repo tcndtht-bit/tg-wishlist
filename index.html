@@ -1034,7 +1034,10 @@
             ]);
           } catch (_) {}
           isLoading = false; render();
-          openWishModalFromImage(PLACEHOLDER_IMAGE, extracted);
+          const imageBase64 = (payload.i && typeof payload.i === 'string')
+            ? ('data:image/jpeg;base64,' + payload.i)
+            : PLACEHOLDER_IMAGE;
+          openWishModalFromImage(imageBase64, extracted);
         };
         loadDataThenOpen();
         return;
@@ -2158,7 +2161,7 @@
       window._wishFromLink = true;
       tg?.HapticFeedback?.impactOccurred?.('light');
       const imgSrc = extractedData?.imageBase64 || extractedData?.image || null;
-      pendingImageBase64 = extractedData?.imageBase64 || null;
+      pendingImageBase64 = extractedData?.imageBase64 || extractedData?.image || null;
       const form = document.getElementById('wishForm');
       form.reset();
       document.getElementById('wishId').value = '';
