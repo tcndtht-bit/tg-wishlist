@@ -1436,6 +1436,53 @@
         render();
         return;
       }
+      if (startParam && startParam.startsWith('link_')) {
+        const encodedUrl = startParam.slice(5);
+        let targetUrl;
+        try { targetUrl = decodeURIComponent(encodedUrl); } catch (_) { targetUrl = null; }
+        if (!targetUrl || !targetUrl.startsWith('https://')) {
+          isLoading = false; currentView = 'main'; render(); return;
+        }
+        const loadDataForLink = async () => {
+          await ensureUser();
+          if (useSupabase && sb) {
+            const wlRes = await loadWishlistsFromSupabase();
+            if (wlRes.data) wishlists = wlRes.data;
+            wishes = await loadWishesFromSupabase(new Set(wishlists.map((w) => w.id)));
+            wishes = Array.isArray(wishes) ? wishes : [];
+            const cats = await loadCategoriesFromSupabase();
+            categories = Array.isArray(cats) && cats.length ? cats : [...DEFAULT_CATS];
+          } else {
+            wishes = loadWishesSync();
+            wishes = Array.isArray(wishes) ? wishes : [];
+            try { wishlists = (JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
+            try { const raw = safeGetItem(CATS_KEY); categories = raw ? JSON.parse(raw) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
+          }
+        };
+        await loadDataForLink();
+        isLoading = false;
+        currentView = 'main';
+        render();
+        const overlay = document.getElementById('analysisOverlay');
+        const overlayText = document.getElementById('analysisOverlayText');
+        if (overlay) { overlay.classList.add('visible'); overlayText && (overlayText.textContent = 'Анализируем ссылку…'); }
+        try {
+          const ctrl = new AbortController();
+          const t = setTimeout(() => ctrl.abort(), 20000);
+          const r = await fetch(`/link-analyze?url=${encodeURIComponent(targetUrl)}`, { signal: ctrl.signal });
+          clearTimeout(t);
+          if (overlay) overlay.classList.remove('visible');
+          if (!r.ok) throw new Error('Link analyze failed');
+          const extracted = await r.json();
+          if (extracted?.error) throw new Error(extracted.message || extracted.error);
+          openWishModalFromLink(extracted, targetUrl);
+        } catch (e) {
+          if (overlay) overlay.classList.remove('visible');
+          console.error('Ошибка анализа ссылки:', e);
+          safeShowAlert('Не удалось проанализировать ссылку. Добавь желание вручную.');
+        }
+        return;
+      }
       if (startParam && (startParam.startsWith('w_') || startParam.startsWith('i_'))) {
         hash = startParam.replace('_', '/');
       }
@@ -1616,9 +1663,12 @@
               </div>
             `).join('')}
         </div>
-        <div style="margin-top:24px;">
+        <div style="margin-top:24px;display:flex;flex-direction:column;gap:8px;">
           <button type="button" class="btn btn-secondary" id="addByPhotoBtn" style="width:100%;">
             📸 Добавить желание по фото
+          </button>
+          <button type="button" class="btn btn-secondary" id="addByLinkBtn" style="width:100%;">
+            🔗 Добавить желание по ссылке
           </button>
           <input type="file" id="addByPhotoInput" accept="image/*" style="display:none;">
         </div>
@@ -1632,6 +1682,7 @@
       });
       const addByPhotoBtn = document.getElementById('addByPhotoBtn');
       const addByPhotoInput = document.getElementById('addByPhotoInput');
+      const addByLinkBtn = document.getElementById('addByLinkBtn');
       if (addByPhotoBtn && addByPhotoInput) {
         addByPhotoBtn.addEventListener('click', () => addByPhotoInput.click());
         addByPhotoInput.addEventListener('change', async (e) => {
@@ -1655,6 +1706,33 @@
             if (overlay) overlay.classList.remove('visible');
             console.error('Ошибка анализа по фото:', err);
             safeShowAlert('Произошла ошибка при анализе. Попробуй ещё раз.');
+          }
+        });
+      }
+      if (addByLinkBtn) {
+        addByLinkBtn.addEventListener('click', async () => {
+          const url = (prompt('Вставь ссылку на товар:') || '').trim();
+          if (!url || !url.startsWith('https://')) {
+            if (url) safeShowAlert('Укажи ссылку, начинающуюся с https://');
+            return;
+          }
+          const overlay = document.getElementById('analysisOverlay');
+          const overlayText = document.getElementById('analysisOverlayText');
+          if (overlay) { overlay.classList.add('visible'); overlayText && (overlayText.textContent = 'Анализируем ссылку…'); }
+          try {
+            const ctrl = new AbortController();
+            const t = setTimeout(() => ctrl.abort(), 20000);
+            const r = await fetch(`/link-analyze?url=${encodeURIComponent(url)}`, { signal: ctrl.signal });
+            clearTimeout(t);
+            if (overlay) overlay.classList.remove('visible');
+            if (!r.ok) throw new Error('Link analyze failed');
+            const extracted = await r.json();
+            if (extracted?.error) throw new Error(extracted.message || extracted.error);
+            openWishModalFromLink(extracted, url);
+          } catch (err) {
+            if (overlay) overlay.classList.remove('visible');
+            console.error('Ошибка анализа ссылки:', err);
+            safeShowAlert('Не удалось проанализировать ссылку. Добавь желание вручную.');
           }
         });
       }
@@ -2432,7 +2510,99 @@
         </div>`;
     }
 
+    function openWishModalFromLink(extractedData, link) {
+      window._wishFromLink = true;
+      tg?.HapticFeedback?.impactOccurred?.('light');
+      pendingImageBase64 = null;
+      const form = document.getElementById('wishForm');
+      form.reset();
+      document.getElementById('wishId').value = '';
+      const imgPreview = document.getElementById('imgPreview');
+      if (extractedData?.image) {
+        imgPreview.src = extractedData.image;
+        imgPreview.style.display = 'block';
+        imgPreview.onerror = () => { imgPreview.style.display = 'none'; };
+      } else {
+        imgPreview.style.display = 'none';
+      }
+      document.getElementById('imgUploadText').textContent = 'Нажми или перетащи фото';
+      ['imgError','nameError','linkError','priceError','sizeError'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) { el.style.display = 'none'; el.textContent = ''; }
+      });
+      document.getElementById('wishModalTitle').textContent = 'Проверь данные из ссылки';
+      document.getElementById('wishLink').value = link || extractedData?.link || '';
+      updateClosingConfirmation();
+      const autoFilled = new Set();
+      if (extractedData?.name) {
+        document.getElementById('wishName').value = extractedData.name;
+        autoFilled.add('name');
+      }
+      if (extractedData?.price != null) {
+        document.getElementById('wishPrice').value = String(extractedData.price);
+        autoFilled.add('price');
+      }
+      if (extractedData?.currency) {
+        const normalized = normalizeCurrency(extractedData.currency);
+        if (normalized) {
+          document.getElementById('wishCurrency').value = normalized;
+          autoFilled.add('currency');
+        }
+      }
+      if (extractedData?.size) {
+        document.getElementById('wishSize').value = extractedData.size;
+        autoFilled.add('size');
+      }
+      const sel = document.getElementById('wishCategory');
+      sel.innerHTML = '<option value="">Без категории</option>' +
+        categories.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+      const wlSelect = document.getElementById('wishWishlistSelect');
+      const selectedIds = new Set();
+      const editableWishlists = wishlists.filter((wl) => !wl.isFollowedPublic);
+      wlSelect.innerHTML = editableWishlists.length === 0
+        ? '<span style="color:var(--text-secondary);font-size:0.9rem;">Нет вишлистов</span>'
+        : `<div class="multiselect-trigger" id="wlMultiselectTrigger"></div>
+           <div class="multiselect-panel" id="wlMultiselectPanel">
+             ${editableWishlists.map((wl) => `<div class="multiselect-option" data-id="${escapeHtml(wl.id)}">${escapeHtml(wl.name)}</div>`).join('')}
+           </div>`;
+      const trig = document.getElementById('wlMultiselectTrigger');
+      const pan = document.getElementById('wlMultiselectPanel');
+      if (trig && pan) {
+        const renderMultiselect = () => {
+          const names = editableWishlists.filter((wl) => selectedIds.has(wl.id)).map((wl) => wl.name);
+          trig.innerHTML = names.length > 0
+            ? names.map((n) => `<span class="multiselect-chip">${escapeHtml(n)}</span>`).join('')
+            : '<span class="multiselect-placeholder">Выберите вишлисты</span>';
+          pan.querySelectorAll('.multiselect-option').forEach((opt) => opt.classList.toggle('selected', selectedIds.has(opt.dataset.id)));
+        };
+        trig.addEventListener('click', (e) => { e.stopPropagation(); wlSelect.classList.toggle('open'); });
+        pan.querySelectorAll('.multiselect-option').forEach((opt) => {
+          opt.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const id = opt.dataset.id;
+            if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
+            renderMultiselect();
+          });
+        });
+        document.addEventListener('click', () => wlSelect.classList.remove('open'), { once: true });
+        wlSelect._getSelectedIds = () => [...selectedIds];
+        renderMultiselect();
+      }
+      document.querySelectorAll('.form-group label').forEach((label) => {
+        const inputId = label.getAttribute('for');
+        if (!inputId) return;
+        const fieldName = inputId.replace('wish', '').toLowerCase();
+        if (autoFilled.has(fieldName) || (fieldName === 'link' && link)) {
+          label.style.color = 'var(--accent)';
+          label.innerHTML = label.textContent.replace(/\s*\(автозаполнено\)/g, '') + ' <span style="font-size:0.7rem;opacity:0.7;">(автозаполнено)</span>';
+        }
+      });
+      updateCounters();
+      document.getElementById('wishModal').classList.add('open');
+    }
+
     function openWishModalFromImage(imageBase64, extractedData) {
+      window._wishFromLink = false;
       tg?.HapticFeedback?.impactOccurred?.('light');
       pendingImageBase64 = imageBase64;
       const form = document.getElementById('wishForm');
@@ -2524,6 +2694,7 @@
     }
 
     function openWishModal(editId = null, defaultWlId = null) {
+      window._wishFromLink = false;
       tg?.HapticFeedback?.impactOccurred?.('light');
       pendingImageBase64 = null;
       const form = document.getElementById('wishForm');
@@ -2686,7 +2857,7 @@
         if (el) { el.style.display = 'none'; el.textContent = ''; }
       });
 
-      if (isNew && !pendingImageBase64) {
+      if (isNew && !pendingImageBase64 && !window._wishFromLink) {
         document.getElementById('imgError').textContent = 'Добавьте изображение';
         document.getElementById('imgError').style.display = 'block';
         return;
