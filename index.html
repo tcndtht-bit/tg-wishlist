@@ -595,6 +595,29 @@
         document.head.appendChild(s);
       });
     }
+    const WISH_IMAGES_BUCKET = 'wish-images';
+    async function uploadImageToSupabaseStorage(dataUrl) {
+      if (!sb || !dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) return null;
+      try {
+        const m = dataUrl.match(/^data:(image\/\w+);base64,(.+)$/);
+        if (!m) return null;
+        const type = m[1];
+        const base64 = m[2];
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const blob = new Blob([bytes], { type: type });
+        const ext = type === 'image/png' ? 'png' : 'jpg';
+        const path = `${(currentUserId || 'user').replace(/\s/g, '_')}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}.${ext}`;
+        const { error } = await sb.storage.from(WISH_IMAGES_BUCKET).upload(path, blob, { contentType: type, upsert: false });
+        if (error) return null;
+        const { data: urlData } = sb.storage.from(WISH_IMAGES_BUCKET).getPublicUrl(path);
+        return urlData?.publicUrl || null;
+      } catch (e) {
+        return null;
+      }
+    }
+
     async function loadSupabase() {
       if (sb) return;
       if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return;
@@ -2633,13 +2656,17 @@
         return;
       }
 
-      const imageForSave = (window._wishFromImage && capturedImageFromPhoto)
+      let imageForSave = (window._wishFromImage && capturedImageFromPhoto)
         ? capturedImageFromPhoto
         : (window._wishFromImage && (_imageFromPhotoForSave || window._stashedImageFromPhoto))
           ? (_imageFromPhotoForSave || window._stashedImageFromPhoto)
           : (pendingImageBase64 && pendingImageBase64 !== PLACEHOLDER_IMAGE)
             ? pendingImageBase64
             : (wishes.find((x) => x.id === id)?.image);
+      if (imageForSave && typeof imageForSave === 'string' && imageForSave.startsWith('data:image/') && useSupabase && sb) {
+        const uploadedUrl = await uploadImageToSupabaseStorage(imageForSave);
+        if (uploadedUrl) imageForSave = uploadedUrl;
+      }
       const payload = {
         id: id || 'w_' + Date.now(),
         name,
