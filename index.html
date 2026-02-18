@@ -5,33 +5,36 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Вишлист</title>
   <link rel="icon" href="data:,">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script>
     function loadEruda(){try{localStorage.setItem('eruda','1');var e=document.createElement('script');e.src='https://cdn.jsdelivr.net/npm/eruda';e.onload=function(){eruda.init();};document.head.appendChild(e);}catch(x){}}
     if(/eruda=true/.test(location.href)||/#eruda/.test(location.hash)||localStorage.getItem('eruda'))loadEruda();
   </script>
   <style>
+    /* --- Design: I Want That So Bad — Gen-Z, Y2K, SLAY --- */
     :root {
-      --bg-primary: #FDFBFF;
-      --bg-secondary: #ffffff;
-      --bg-card: #ffffff;
-      --accent: #8B5CF6;
-      --text-primary: #1a1a2e;
-      --text-secondary: #6B7280;
-      --border: rgba(196,181,253,0.25);
-      --shadow: 0 4px 20px rgba(0,0,0,0.06);
-      --gradient-1: #C0FF00;
-      --gradient-2: #A78BFA;
-      --gradient-3: #FF6B9D;
-      --font-main: 'Space Grotesk', -apple-system, sans-serif;
-      --font-body: 'Inter', -apple-system, sans-serif;
+      /* Light theme: lime, lavender, pink, neon */
+      --bg-primary: #fef9fc;
+      --bg-secondary: #fff;
+      --bg-card: rgba(255,255,255,0.85);
+      --accent: #ff4d8d;
+      --accent-lime: #c8ff00;
+      --accent-lavender: #b8a9ff;
+      --accent-pink: #ff9ed2;
+      --accent-neon: #ff2d92;
+      --text-primary: #1d1d24;
+      --text-secondary: #5c5c6d;
+      --border: rgba(184,169,255,0.3);
+      --shadow: 0 4px 24px rgba(255,77,141,0.15);
+      --radius-sm: 12px;
+      --radius-md: 16px;
+      --radius-lg: 20px;
+      --radius-blob: 60% 40% 30% 70% / 55% 45% 55% 45%;
+      --font-display: 'Segoe UI', system-ui, sans-serif;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: var(--font-main);
+      font-family: var(--font-display);
       background: var(--bg-primary);
       color: var(--text-primary);
       min-height: 100vh;
@@ -39,64 +42,103 @@
       position: relative;
       overflow-x: hidden;
     }
+    /* Dynamic background — gradient blobs */
+    body::before {
+      content: '';
+      position: fixed; inset: 0; z-index: -2;
+      background: linear-gradient(135deg, rgba(200,255,0,0.08) 0%, rgba(184,169,255,0.12) 40%, rgba(255,158,210,0.1) 70%, rgba(255,77,141,0.06) 100%);
+      pointer-events: none;
+    }
+    body::after {
+      content: '';
+      position: fixed; top: -20%; right: -10%; width: 50%; height: 60%;
+      border-radius: var(--radius-blob); background: radial-gradient(circle, rgba(184,169,255,0.25) 0%, transparent 70%);
+      pointer-events: none; z-index: -1;
+    }
     body.light {
-      --bg-primary: #FDFBFF;
-      --bg-secondary: #ffffff;
-      --bg-card: #ffffff;
-      --text-primary: #1a1a2e;
-      --text-secondary: #6B7280;
-      --border: rgba(196,181,253,0.25);
-      --shadow: 0 4px 20px rgba(0,0,0,0.06);
+      --bg-primary: #fef9fc;
+      --bg-secondary: #fff;
+      --bg-card: rgba(255,255,255,0.9);
+      --accent: #ff4d8d;
+      --accent-neon: #ff2d92;
+      --text-primary: #1d1d24;
+      --text-secondary: #5c5c6d;
+      --border: rgba(184,169,255,0.35);
+      --shadow: 0 4px 24px rgba(255,77,141,0.12);
     }
-    .blobs { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
-    .blob { position: absolute; border-radius: 50%; }
-    .blob-1 { width: 280px; height: 280px; top: -60px; right: -40px; background: radial-gradient(circle, rgba(192,255,0,0.22) 0%, rgba(192,255,0,0) 70%); animation: blobFloat1 8s ease-in-out infinite; }
-    .blob-2 { width: 320px; height: 320px; top: 30%; left: -80px; background: radial-gradient(circle, rgba(196,181,253,0.2) 0%, rgba(196,181,253,0) 70%); animation: blobFloat2 10s ease-in-out infinite; }
-    .blob-3 { width: 250px; height: 250px; bottom: 15%; right: -30px; background: radial-gradient(circle, rgba(255,107,157,0.15) 0%, rgba(255,107,157,0) 70%); animation: blobFloat3 12s ease-in-out infinite; }
-    .blob-4 { width: 200px; height: 200px; top: 60%; left: 30%; background: radial-gradient(circle, rgba(0,255,135,0.08) 0%, rgba(0,255,135,0) 70%); animation: blobFloat1 14s ease-in-out infinite reverse; }
-    @keyframes blobFloat1 { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(30px,-20px) scale(1.1)} 66%{transform:translate(-15px,15px) scale(0.95)} }
-    @keyframes blobFloat2 { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(-25px,25px) scale(1.05)} 66%{transform:translate(20px,-10px) scale(0.9)} }
-    @keyframes blobFloat3 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-20px,-30px) scale(1.08)} }
-    .container { max-width: 480px; margin: 0 auto; padding: 16px; padding-bottom: 90px; position: relative; z-index: 1; }
-    header {
+    body:not(.light) {
+      --bg-primary: #1a1624;
+      --bg-secondary: #252033;
+      --bg-card: rgba(37,32,51,0.85);
+      --accent: #ff7bab;
+      --accent-lime: #b8e64d;
+      --accent-lavender: #9b8bcc;
+      --accent-pink: #e88bb8;
+      --accent-neon: #ff5a9d;
+      --text-primary: #f0edf5;
+      --text-secondary: #a09bb5;
+      --border: rgba(184,169,255,0.2);
+      --shadow: 0 4px 24px rgba(0,0,0,0.4);
+    }
+    .app-shell { max-width: 480px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; padding-bottom: 72px; }
+    .container { max-width: 480px; margin: 0 auto; padding: 16px; flex: 1; }
+    #content { animation: contentIn 0.3s ease-out; }
+    @keyframes contentIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    header.app-header {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 12px 0 20px;
-      border-bottom: none;
+      flex-direction: column;
+      gap: 4px;
+      padding: 16px 16px 12px;
+      border: none;
+      background: linear-gradient(180deg, rgba(255,255,255,0.6) 0%, transparent 100%);
+      backdrop-filter: blur(8px);
     }
-    .header-gradient {
-      font-family: var(--font-main);
-      font-size: 1.4rem;
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      background: linear-gradient(135deg, var(--gradient-1) 0%, var(--gradient-2) 40%, var(--gradient-3) 80%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      text-align: center;
-      width: 100%;
-    }
+    body:not(.light) header.app-header { background: linear-gradient(180deg, rgba(37,32,51,0.7) 0%, transparent 100%); }
+    h1.app-title { font-size: 1.4rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text-primary); }
+    .app-slogan { font-size: 0.85rem; color: var(--text-secondary); font-weight: 500; opacity: 0.9; }
+    header { display: flex; justify-content: space-between; align-items: center; padding: 12px 0 20px; border-bottom: 1px solid var(--border); }
     h1 { font-size: 1.5rem; font-weight: 700; }
-    .header-slogan { text-align: center; font-size: 13px; color: var(--gradient-2); letter-spacing: 0.05em; margin-top: 4px; margin-bottom: 16px; }
+    /* Tab bar */
+    .tab-bar {
+      position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+      width: 100%; max-width: 480px;
+      display: flex; justify-content: space-around; align-items: center;
+      padding: 10px 8px calc(10px + env(safe-area-inset-bottom));
+      background: rgba(255,255,255,0.9); backdrop-filter: blur(12px);
+      border-top: 1px solid var(--border); z-index: 100;
+      box-shadow: 0 -4px 20px rgba(255,77,141,0.08);
+    }
+    body:not(.light) .tab-bar { background: rgba(37,32,51,0.95); }
+    .tab-item {
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+      padding: 6px 12px; border-radius: var(--radius-sm);
+      color: var(--text-secondary); font-size: 0.7rem; font-weight: 600;
+      text-decoration: none; cursor: pointer; transition: all 0.2s;
+      border: none; background: none;
+    }
+    .tab-item:active { transform: scale(0.95); }
+    .tab-item.active { color: var(--accent-neon); }
+    .tab-item svg { width: 24px; height: 24px; opacity: 0.9; }
+    .tab-item.active svg { filter: drop-shadow(0 0 6px rgba(255,45,146,0.5)); }
+
     .btn {
-      background: linear-gradient(135deg, var(--gradient-1), var(--gradient-2));
-      color: #1a1a2e;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-neon) 100%);
+      color: white;
       border: none;
       padding: 10px 18px;
-      border-radius: 12px;
+      border-radius: var(--radius-sm);
       font-size: 0.9rem;
       font-weight: 600;
       cursor: pointer;
-      transition: transform 0.1s;
-      font-family: var(--font-main);
+      transition: transform 0.1s, box-shadow 0.2s;
+      box-shadow: 0 4px 12px rgba(255,77,141,0.35);
     }
+    .btn:hover { box-shadow: 0 6px 16px rgba(255,77,141,0.4); }
     .btn:active { transform: scale(0.97); }
     .btn-secondary {
-      background: rgba(255,255,255,0.8);
+      background: var(--bg-card);
       color: var(--text-primary);
       border: 1px solid var(--border);
-      backdrop-filter: blur(8px);
     }
     .btn-sm { font-size: 0.8rem; padding: 6px 12px; }
     .btn-icon {
@@ -150,23 +192,35 @@
     }
     .category-title .count { font-weight: 600; color: var(--text-primary); }
     .wishlist { margin-top: 12px; }
+    /* Masonry / tile grid для карточек */
+    .wish-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+      padding: 0 0 24px;
+    }
+    .wish-grid .card { margin-bottom: 0; }
+    .wish-grid .card:nth-child(3n+1) { grid-column: span 1; }
+    .wish-grid .card.tile-wide { grid-column: span 2; }
     .card {
       background: var(--bg-card);
-      border-radius: 16px;
-      padding: 16px;
-      margin-bottom: 12px;
+      backdrop-filter: blur(8px);
+      border-radius: var(--radius-md);
+      padding: 0;
+      overflow: hidden;
       box-shadow: var(--shadow);
       border: 1px solid var(--border);
+      transition: transform 0.2s, box-shadow 0.2s;
     }
+    .card:active { transform: scale(0.98); }
     .card-img {
       width: 100%;
-      height: 160px;
+      height: 120px;
       object-fit: cover;
-      border-radius: 12px;
-      margin-bottom: 12px;
-      background: var(--bg-secondary);
+      background: linear-gradient(135deg, var(--accent-lavender) 0%, var(--accent-pink) 100%);
     }
-    .card-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 8px; word-break: break-word; }
+    .card .card-body { padding: 10px 12px; }
+    .card .card-title, .card .card-price, .card .card-meta, .card .card-link, .card .card-comment, .card .card-actions { padding: 0 12px; }
+    .card .card-title { padding-top: 10px; }
+    .card-title { font-size: 1rem; font-weight: 600; margin-bottom: 6px; word-break: break-word; }
     .card-meta { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 4px; }
     .card-price { font-size: 1.2rem; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
     .card-link {
@@ -269,6 +323,8 @@
     }
     .form-group textarea { min-height: 80px; resize: vertical; }
     .form-row { display: flex; gap: 12px; }
+    .form-actions-split { display: flex; gap: 12px; margin-top: 24px; }
+    .form-actions-split .btn { flex: 1; }
     .form-row .form-group { flex: 1; }
     .form-row .form-group:last-child { flex: 0 0 100px; }
     .img-upload {
@@ -304,14 +360,33 @@
     .cat-item-remove { color: var(--accent); cursor: pointer; padding: 4px; }
     .cat-add { display: flex; gap: 8px; margin-top: 12px; }
     .cat-add input { flex: 1; }
+    /* Tag cloud */
+    .tag-cloud { display: flex; flex-wrap: wrap; gap: 8px; padding: 16px 0; justify-content: center; }
+    .tag-chip {
+      padding: 8px 14px; border-radius: 20px; font-size: 0.85rem; font-weight: 600;
+      background: linear-gradient(135deg, rgba(184,169,255,0.3) 0%, rgba(255,158,210,0.3) 100%);
+      border: 1px solid var(--border); color: var(--text-primary); cursor: pointer;
+      transition: transform 0.2s; user-select: none;
+    }
+    .tag-chip:hover, .tag-chip.selected { transform: scale(1.08); }
+    .tag-chip.selected { background: linear-gradient(135deg, var(--accent-lavender) 0%, var(--accent-pink) 100%); color: #fff; }
+    .trash-zone {
+      margin-top: 24px; padding: 20px; border: 2px dashed var(--border);
+      border-radius: var(--radius-md); text-align: center; color: var(--text-secondary);
+      min-height: 60px; transition: all 0.2s;
+    }
+    .trash-zone.drag-over { border-color: var(--accent); background: rgba(255,77,141,0.1); }
+    .tag-form-row { display: flex; }
+
     .wl-item {
       display: flex;
       align-items: center;
       gap: 12px;
-      padding: 12px;
+      padding: 14px;
       background: var(--bg-card);
-      border-radius: 8px;
-      margin-bottom: 8px;
+      backdrop-filter: blur(8px);
+      border-radius: var(--radius-md);
+      margin-bottom: 10px;
       border: 1px solid var(--border);
     }
     .wl-item-img {
@@ -331,29 +406,38 @@
     .card-reserved { opacity: 0.85; border-left: 3px solid var(--accent); }
     .card-reserved-badge { font-size: 0.8rem; color: var(--accent); margin-top: 6px; }
     .view-readonly .btn-edit, .view-readonly .btn-del, .view-readonly .btn-move { display: none !important; }
+    /* Action buttons — справа */
+    .action-buttons {
+      position: fixed; top: 100px; right: 12px; z-index: 50;
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .action-btn {
+      width: 48px; height: 48px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent-lavender) 0%, var(--accent-pink) 100%);
+      border: none; color: #fff; font-size: 1.2rem; cursor: pointer;
+      box-shadow: 0 4px 14px rgba(184,169,255,0.5);
+      display: flex; align-items: center; justify-content: center;
+      transition: transform 0.2s; animation: float 3s ease-in-out infinite;
+    }
+    .action-btn:nth-child(2) { animation-delay: 0.5s; background: linear-gradient(135deg, var(--accent-lime) 0%, #a8e063 100%); }
+    .action-btn:active { transform: scale(0.9); }
+    @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px)} }
+
+    /* Feed — TikTok-style */
+    .feed-container {
+      padding: 12px 0 24px; max-height: 50vh; overflow-y: auto;
+    }
+    .feed-item {
+      padding: 14px 16px; margin-bottom: 10px;
+      background: var(--bg-card); backdrop-filter: blur(8px);
+      border-radius: var(--radius-md); border: 1px solid var(--border);
+      font-size: 0.9rem; line-height: 1.4; color: var(--text-primary);
+      animation: feedIn 0.4s ease-out;
+    }
+    @keyframes feedIn { from{opacity:0;transform:translateY(-8px)} to{opacity:1;transform:translateY(0)} }
+
     .main-buttons { display: flex; flex-direction: column; gap: 12px; margin-bottom: 32px; }
     .main-buttons .btn { width: 100%; justify-content: center; }
-    .main-home-wrap { position: relative; padding-bottom: 80px; }
-    .main-home-buttons { position: absolute; right: 0; top: 0; display: flex; flex-direction: column; gap: 12px; z-index: 5; }
-    .main-home-btn { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border: none; border-radius: 16px; font-family: var(--font-main); font-weight: 600; font-size: 11px; cursor: pointer; transition: transform 0.1s; backdrop-filter: blur(10px); }
-    .main-home-btn:active { transform: scale(0.97); }
-    .main-home-btn.photo { background: linear-gradient(135deg, rgba(192,255,0,0.85), rgba(167,139,250,0.85)); color: #1a1a2e; box-shadow: 0 2px 12px rgba(192,255,0,0.3); }
-    .main-home-btn.link { background: linear-gradient(135deg, rgba(255,107,157,0.85), rgba(167,139,250,0.85)); color: #fff; box-shadow: 0 2px 12px rgba(255,107,157,0.3); }
-    .live-feed { margin-top: 16px; padding-right: 90px; }
-    .live-feed-title { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 12px; font-weight: 600; color: #6B7280; text-transform: uppercase; letter-spacing: 0.05em; }
-    .live-feed-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gradient-1); box-shadow: 0 0 8px rgba(192,255,0,0.6); animation: pulse 2s ease-in-out infinite; }
-    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.6;transform:scale(0.9)} }
-    .live-feed-item { background: rgba(255,255,255,0.7); backdrop-filter: blur(12px); border: 1px solid rgba(196,181,253,0.2); border-radius: 16px; padding: 12px 14px; margin-bottom: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
-    .recent-item.live-feed-item { cursor: pointer; transition: transform 0.1s; }
-    .recent-item.live-feed-item:active { transform: scale(0.98); }
-    .live-feed-item p { font-family: var(--font-body); font-size: 13px; color: #374151; line-height: 1.5; margin: 0 0 4px 0; }
-    .live-feed-item span { font-size: 10px; color: #9CA3AF; }
-    .tabbar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 50; background: rgba(255,255,255,0.75); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-top: 1px solid rgba(200,180,255,0.3); }
-    .tabbar-inner { max-width: 480px; margin: 0 auto; display: flex; justify-content: space-around; padding: 8px 8px max(8px, env(safe-area-inset-bottom)) 8px; }
-    .tabbar-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 16px; border: none; background: transparent; border-radius: 12px; cursor: pointer; font-family: var(--font-main); font-size: 10px; color: #9CA3AF; transition: all 0.2s; }
-    .tabbar-btn:hover { color: #6B7280; }
-    .tabbar-btn.active { background: linear-gradient(135deg, rgba(192,255,0,0.25), rgba(196,181,253,0.25)); color: #7C3AED; font-weight: 600; transform: scale(1.02); }
-    .tabbar-btn.active .tabbar-icon { color: #8B5CF6; filter: drop-shadow(0 0 6px rgba(139,92,246,0.4)); }
     .section-title { font-size: 1rem; color: var(--text-secondary); margin-bottom: 12px; }
     .recent-list { display: flex; flex-direction: column; gap: 8px; }
     .recent-item {
@@ -410,46 +494,49 @@
   </style>
 </head>
 <body>
-  <!-- v:2025-02-15-4 -->
-  <div class="blobs">
-    <div class="blob blob-1"></div>
-    <div class="blob blob-2"></div>
-    <div class="blob blob-3"></div>
-    <div class="blob blob-4"></div>
-  </div>
-  <div class="container">
-    <header id="mainHeader">
-      <h1 class="header-gradient">I Want That So Bad</h1>
+  <!-- v:2025-02-15-4 design -->
+  <div class="app-shell">
+    <header class="app-header" id="mainHeader">
+      <h1 class="app-title">I Want That So Bad</h1>
+      <span class="app-slogan" id="headerSlogan">Желай, как никогда прежде</span>
     </header>
-    <p id="headerSlogan" class="header-slogan">Желай, как никогда прежде</p>
 
+    <div class="action-buttons" id="actionButtons">
+      <button type="button" class="action-btn" id="addByPhotoBtn" title="Добавить по фото">📸</button>
+      <button type="button" class="action-btn" id="addByLinkBtn" title="Добавить по ссылке">🔗</button>
+    </div>
+    <input type="file" id="addByPhotoInput" accept="image/*" capture="environment" style="display:none">
+
+    <div class="container">
     <div id="content">
-      <div class="main-home-wrap">
-        <div class="live-feed">
-          <div class="live-feed-title"><span class="live-feed-dot"></span> Live Feed</div>
-          <div class="skeleton skeleton-recent"></div>
-          <div class="skeleton skeleton-recent"></div>
-          <div class="skeleton skeleton-recent"></div>
-        </div>
+      <div class="main-buttons">
+        <button class="btn" data-nav="manageWishlists" onclick="window.__nav&&window.__nav('manageWishlists')">Вишлисты</button>
+        <button class="btn btn-secondary" data-nav="manageCategories" onclick="window.__nav&&window.__nav('manageCategories')">Категории</button>
+        <button class="btn btn-secondary" data-nav="manageWishes" onclick="window.__nav&&window.__nav('manageWishes')">Желания</button>
       </div>
+      <h3 class="section-title">Недавно изменённые</h3>
+      <div class="recent-list"><p style="color:var(--text-secondary);font-size:0.9rem;">Нет вишлистов</p></div>
+    </div>
     </div>
   </div>
 
-  <nav class="tabbar" id="tabbar">
-    <div class="tabbar-inner">
-      <button type="button" class="tabbar-btn active" data-tab="main" aria-label="Домой">
-        <span class="tabbar-icon">🏠</span> Домой
-      </button>
-      <button type="button" class="tabbar-btn" data-tab="manageWishlists" aria-label="Вишлисты">
-        <span class="tabbar-icon">📋</span> Вишлисты
-      </button>
-      <button type="button" class="tabbar-btn" data-tab="manageCategories" aria-label="Теги">
-        <span class="tabbar-icon">🏷️</span> Теги
-      </button>
-      <button type="button" class="tabbar-btn" data-tab="manageWishes" aria-label="Желания">
-        <span class="tabbar-icon">✨</span> Желания
-      </button>
-    </div>
+  <nav class="tab-bar" id="tabBar">
+    <button type="button" class="tab-item" data-nav="main" id="tabHome" aria-label="Домой">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Домой
+    </button>
+    <button type="button" class="tab-item" data-nav="manageWishlists" id="tabWishlists" aria-label="Вишлисты">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+      Вишлисты
+    </button>
+    <button type="button" class="tab-item" data-nav="manageCategories" id="tabTags" aria-label="Теги">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/></svg>
+      Теги
+    </button>
+    <button type="button" class="tab-item" data-nav="manageWishes" id="tabWishes" aria-label="Желания">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+      Желания
+    </button>
   </nav>
 
   <div class="analysis-overlay" id="analysisOverlay">
@@ -1306,9 +1393,30 @@
       return wl;
     }
 
+    function updateHeaderForView() {
+      const slogan = document.getElementById('headerSlogan');
+      if (!slogan) return;
+      const titles = {
+        main: 'Желай, как никогда прежде',
+        manageWishlists: 'Мои ✨Wish lists✨',
+        manageCategories: 'Теги 🏷',
+        manageWishes: 'Желания',
+        wishlist: selectedWlId ? (wishlists.find((w) => w.id === selectedWlId)?.name || 'Вишлист') : '',
+        createWishlist: 'Новый ✨Wish list✨'
+      };
+      slogan.textContent = titles[currentView] || titles.main;
+    }
+
     function navigateTo(view, wlId = null) {
       currentView = view;
       selectedWlId = wlId;
+      document.querySelectorAll('.tab-item').forEach((t) => t.classList.remove('active'));
+      const tabMap = { main: 'tabHome', manageWishlists: 'tabWishlists', manageCategories: 'tabTags', manageWishes: 'tabWishes', createWishlist: 'tabWishlists', wishlist: 'tabWishlists' };
+      const tabId = tabMap[view];
+      if (tabId) document.getElementById(tabId)?.classList.add('active');
+      const actionBtns = document.getElementById('actionButtons');
+      if (actionBtns) actionBtns.style.display = (view === 'main') ? 'flex' : 'none';
+      updateHeaderForView();
       render();
     }
     window.__nav = navigateTo;
@@ -1316,64 +1424,57 @@
       const btn = e.target.closest('[data-nav]');
       if (btn) { e.preventDefault(); try { navigateTo(btn.dataset.nav); } catch (err) { console.error('nav err:', err); } return; }
       const back = e.target.closest('[data-nav-back]');
-      if (back) { e.preventDefault(); navigateTo('main'); return; }
+      if (back) { e.preventDefault(); navigateTo(back.dataset.navBack || 'main'); return; }
       const recent = e.target.closest('.recent-item[data-wl-id]');
       if (recent) { e.preventDefault(); navigateTo('wishlist', recent.dataset.wlId); }
     });
 
-    function renderMain() {
-      const content = document.getElementById('content');
+    function getFeedEvents() {
+      const events = [];
       const visibleWishlists = wishlists.filter((wl) => {
         if (wl.privacy === 'private') return wl.ownerId === currentUserId;
         if (wl.privacy === 'shared') return canEditWishlist(wl);
         return true;
       });
-      const recent = [...visibleWishlists]
-        .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-        .slice(0, 5);
-      const formatTime = (ts) => {
-        if (!ts) return '';
-        const d = Date.now() - (ts || 0);
-        if (d < 60000) return 'только что';
-        if (d < 3600000) return Math.floor(d/60000) + ' мин назад';
-        if (d < 86400000) return Math.floor(d/3600000) + ' ч назад';
-        return 'недавно';
-      };
+      visibleWishlists.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+      for (const wl of visibleWishlists.slice(0, 5)) {
+        const wlWishes = wishes.filter((w) => (w.wishlistIds || []).includes(wl.id));
+        if (wlWishes.length > 0) {
+          const w = wlWishes[0];
+          events.push({ text: 'Вы добавили ' + escapeHtml(w.name) + ' в вишлист ' + escapeHtml(wl.name) + ' ✨', wlId: wl.id });
+        }
+      }
+      if (events.length === 0) {
+        events.push({ text: 'Добавьте первое желание по фото или ссылке 💅', wlId: null });
+      }
+      return events.slice(0, 8);
+    }
+
+    function renderMain() {
+      const content = document.getElementById('content');
+      const feedEvents = getFeedEvents();
 
       content.innerHTML = `
-        <div class="main-home-wrap">
-          <div class="main-home-buttons">
-            <button type="button" class="main-home-btn photo" id="addByPhotoBtn">📸 По фото</button>
-            <button type="button" class="main-home-btn link" id="addByLinkBtn">🔗 По ссылке</button>
-          </div>
-          <div class="live-feed">
-            <div class="live-feed-title">
-              <span class="live-feed-dot"></span>
-              Live Feed
-            </div>
-            <div id="recentList" class="live-feed-list">
-              ${isLoading
-                ? '<div class="skeleton skeleton-recent"></div><div class="skeleton skeleton-recent"></div><div class="skeleton skeleton-recent"></div>'
-                : (recent.length === 0
-                  ? '<div class="live-feed-item"><p>Нет недавней активности. Добавь желание по фото или ссылке!</p><span>—</span></div>'
-                  : recent.map((wl) => `
-                    <div class="recent-item live-feed-item" data-wl-id="${escapeHtml(wl.id)}">
-                      <p>${escapeHtml(wl.name)}</p>
-                      <span>${formatTime(wl.updatedAt)}</span>
-                    </div>
-                  `).join(''))}
-            </div>
-          </div>
-          <input type="file" id="addByPhotoInput" accept="image/*" capture="environment" style="display:none;">
+        <div class="feed-container" id="feedContainer">
+          ${isLoading
+            ? '<div class="skeleton skeleton-recent" style="height:80px;margin-bottom:10px;"></div><div class="skeleton skeleton-recent" style="height:80px;margin-bottom:10px;"></div><div class="skeleton skeleton-recent" style="height:80px;"></div>'
+            : feedEvents.map((ev, i) => `
+              <div class="feed-item" data-wl-id="${ev.wlId || ''}" style="animation-delay:${i * 0.05}s">
+                ${ev.text}
+              </div>
+            `).join('')}
         </div>
       `;
 
-      content.querySelectorAll('[data-nav]').forEach((b) => {
-        b.addEventListener('click', () => navigateTo(b.dataset.nav));
+      content.querySelectorAll('.feed-item[data-wl-id]').forEach((el) => {
+        const wlId = el.dataset.wlId;
+        if (wlId) { el.style.cursor = 'pointer'; el.addEventListener('click', () => navigateTo('wishlist', wlId)); }
       });
-      content.querySelectorAll('.recent-item').forEach((el) => {
-        el.addEventListener('click', () => navigateTo('wishlist', el.dataset.wlId));
-      });
+    }
+
+    function bindActionButtons() {
+      if (window._actionButtonsBound) return;
+      window._actionButtonsBound = true;
       const addByPhotoBtn = document.getElementById('addByPhotoBtn');
       const addByPhotoInput = document.getElementById('addByPhotoInput');
       const addByLinkBtn = document.getElementById('addByLinkBtn');
@@ -1587,12 +1688,10 @@
       if (pendingInviteData) {
         document.getElementById('inviteConsentText').textContent = `${pendingInviteData.ownerName} приглашает вас стать соавтором вишлиста «${pendingInviteData.wlName}». Вы сможете добавлять и редактировать желания.`;
         document.getElementById('inviteConsentModal').classList.add('open');
-        if (typeof updateTabBar === 'function') updateTabBar();
         return;
       }
       if (publicViewData) {
         renderPublicView();
-        if (typeof updateTabBar === 'function') updateTabBar();
         if (!shareWelcomeShown) {
           const owner = publicViewData.ownerName || 'Пользователь';
           const wlName = publicViewData.wishlist?.name || 'Вишлист';
@@ -1604,76 +1703,91 @@
       }
       const content = document.getElementById('content');
       if (!content) return;
+      updateHeaderForView();
       if (currentView === 'main') {
         renderMain();
-        if (typeof updateTabBar === 'function') updateTabBar();
         return;
       }
       if (currentView === 'manageWishlists') {
         renderManageWishlists();
-        if (typeof updateTabBar === 'function') updateTabBar();
         return;
       }
       if (currentView === 'manageCategories') {
         renderManageCategories();
-        if (typeof updateTabBar === 'function') updateTabBar();
         return;
       }
       if (currentView === 'manageWishes') {
         renderManageWishes();
-        if (typeof updateTabBar === 'function') updateTabBar();
         return;
       }
       if (currentView === 'wishlist' && selectedWlId) {
         renderWishlistDetail(selectedWlId);
-        if (typeof updateTabBar === 'function') updateTabBar();
+        return;
+      }
+      if (currentView === 'createWishlist') {
+        renderCreateWishlist();
         return;
       }
       renderMain();
-      if (typeof updateTabBar === 'function') updateTabBar();
+    }
+
+    function renderCreateWishlist() {
+      const content = document.getElementById('content');
+      content.innerHTML = `
+        <div class="form-group" style="margin-bottom:16px;">
+          <label>Название вишлиста</label>
+          <input type="text" id="newWlName" placeholder="Например: Birthday 🎂">
+        </div>
+        <div class="form-group" style="margin-bottom:16px;">
+          <label>Обложка</label>
+          <div class="img-upload wl-add-img" id="wlImgUpload">
+            <input type="file" id="wlImage" accept="image/*">
+            <span id="wlImgText">Добавить обложку</span>
+            <img id="wlImgPreview" class="img-preview" style="display:none;max-height:120px;" alt="">
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:20px;">
+          <label>Приватность</label>
+          <select id="newWlPrivacy">
+            <option value="private">🔒 Приватный</option>
+            <option value="public">👁 Публичный</option>
+            <option value="shared">🤝 Совместный</option>
+          </select>
+        </div>
+        <div class="form-row form-actions-split">
+          <button type="button" class="btn btn-secondary" id="createWlBack" style="flex:0.3;">Назад</button>
+          <button type="button" class="btn" id="createWlSubmit" style="flex:0.7;">Создать</button>
+        </div>
+      `;
+      document.getElementById('createWlBack').addEventListener('click', () => navigateTo('manageWishlists'));
+      document.getElementById('createWlSubmit').addEventListener('click', addWlInManage);
+      document.getElementById('wlImgUpload').addEventListener('click', () => document.getElementById('wlImage').click());
+      document.getElementById('wlImage').addEventListener('change', async (e) => {
+        const f = e.target.files?.[0];
+        if (!f?.type?.startsWith('image/')) return;
+        try {
+          let b = await fileToBase64(f);
+          b = await resizeImageBase64(b, 400);
+          pendingWlImageBase64 = b;
+          document.getElementById('wlImgPreview').src = b;
+          document.getElementById('wlImgPreview').style.display = 'block';
+          document.getElementById('wlImgText').textContent = 'Обложка выбрана';
+        } catch (_) {}
+      });
     }
 
     function renderManageWishlists() {
       const content = document.getElementById('content');
       content.innerHTML = `
-        <button class="btn back-btn" data-nav-back>← Назад</button>
-        <h2 style="margin-bottom:20px;font-family:var(--font-main);">Вишлисты</h2>
-        <div id="wlList" class="wl-manage-list"></div>
-        <div id="wlAddForm" class="wl-form-section" style="margin-top:24px;">
-          <h3 style="margin-bottom:12px;">Добавить вишлист</h3>
-          <div class="form-group">
-            <label><span class="required">*</span> Название</label>
-            <input type="text" id="newWlName" placeholder="Название вишлиста">
-          </div>
-          <div class="form-group">
-            <label>Обложка</label>
-            <div class="img-upload wl-add-img" id="wlImgUpload">
-              <input type="file" id="wlImage" accept="image/*">
-              <span id="wlImgText">Добавить обложку (необязательно)</span>
-              <img id="wlImgPreview" class="img-preview" style="display:none;max-height:120px;" alt="">
-            </div>
-          </div>
-          <div class="form-group">
-            <label>Приватность</label>
-            <select id="newWlPrivacy">
-              <option value="private">Приватный</option>
-              <option value="public">Публичный</option>
-              <option value="shared">Совместный</option>
-            </select>
-          </div>
-          <div class="form-actions" style="margin-top:16px;">
-            <button type="button" class="btn" id="addWlBtn">Добавить</button>
-          </div>
-        </div>
-        <div id="wlEditForm" style="display:none;"></div>
+        <button class="btn btn-slay" data-nav="createWishlist" style="margin-bottom:20px;width:100%;">Твой новый SLAY-LIST💅</button>
+        <div id="wlManageList" class="wl-manage-list"></div>
       `;
-      content.querySelector('[data-nav-back]').addEventListener('click', () => navigateTo('main'));
+      content.querySelector('.btn-slay').addEventListener('click', () => navigateTo('createWishlist'));
       refreshWlManageList();
-      bindWlManageHandlers();
     }
 
     function refreshWlManageList() {
-      const list = document.getElementById('wlList');
+      const list = document.getElementById('wlManageList') || document.getElementById('wlList');
       if (!list) return;
       list.innerHTML = wishlists.length === 0
         ? '<div class="empty-cats">Вишлистов нет. Добавь первый.</div>'
@@ -1686,22 +1800,31 @@
             const removeOrLeave = (isCollab || isFollowed)
               ? `<span class="wl-item-leave" data-wl-id="${escapeHtml(wl.id)}" data-followed="${isFollowed}" style="color:var(--accent);cursor:pointer;padding:4px;font-size:0.85rem;">Покинуть</span>`
               : (isOwner(wl) ? `<span class="wl-item-remove" data-wl-id="${escapeHtml(wl.id)}">✕</span>` : '');
-            const editBtn = isFollowed ? '' : `<span class="wl-item-edit" data-wl-id="${escapeHtml(wl.id)}" title="Редактировать">✎</span>`;
+            const editBtn = isFollowed ? '' : `<button type="button" class="wl-item-edit" data-wl-id="${escapeHtml(wl.id)}" title="Редактировать" style="background:none;border:none;padding:6px;cursor:pointer;font-size:1.1rem;">⚙️</button>`;
+            const prIcon = wl.privacy === 'private' ? '🔒' : (wl.privacy === 'public' ? '👁' : '🤝');
             return `
               <div class="wl-item" data-wl-id="${escapeHtml(wl.id)}">
                 ${wl.image ? `<img class="wl-item-img" src="${escapeHtml(wl.image)}" alt="">` : '<div class="wl-item-img" style="background:var(--border);flex-shrink:0;"></div>'}
                 <div class="wl-item-body">
-                  <div>${escapeHtml(wl.name)}</div>
-                  <span class="privacy-badge" style="font-size:0.7rem;margin-top:4px;display:inline-block;">${escapeHtml(pr)}</span>
-                  <div style="margin-top:8px;">${shareBtn}${inviteBtn}</div>
+                  <div style="font-weight:600;">${escapeHtml(wl.name)}</div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;font-size:0.85rem;color:var(--text-secondary);">
+                    <span>${prIcon} ${escapeHtml(pr)}</span>
+                    <span>${shareBtn}${inviteBtn}</span>
+                  </div>
                 </div>
                 ${editBtn}
                 ${removeOrLeave}
               </div>`;
           }).join('');
-      list.querySelectorAll('.wl-item-edit').forEach((el) => el.addEventListener('click', () => openEditWlFormInManage(el.dataset.wlId)));
-      list.querySelectorAll('.wl-item-remove').forEach((el) => el.addEventListener('click', () => removeWlInManage(el.dataset.wlId)));
-      list.querySelectorAll('.wl-item-leave').forEach((el) => el.addEventListener('click', async () => {
+      list.querySelectorAll('.wl-item').forEach((el) => {
+        const wlId = el.dataset.wlId;
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', (e) => { if (!e.target.closest('.wl-item-edit, .wl-item-remove, .wl-item-leave, [data-wl-share], [data-wl-invite]')) navigateTo('wishlist', wlId); });
+      });
+      list.querySelectorAll('.wl-item-edit').forEach((el) => el.addEventListener('click', (e) => { e.stopPropagation(); openWlModal(); requestAnimationFrame(() => openEditWlForm(el.dataset.wlId)); }));
+      list.querySelectorAll('.wl-item-remove').forEach((el) => el.addEventListener('click', async (e) => { e.stopPropagation(); await removeWlInManage(el.dataset.wlId); }));
+      list.querySelectorAll('.wl-item-leave').forEach((el) => el.addEventListener('click', async (e) => {
+        e.stopPropagation();
         const wlId = el.dataset.wlId;
         if (el.dataset.followed === 'true') {
           await leaveFollowedPublicWishlist(wlId);
@@ -1709,10 +1832,11 @@
         } else {
           await leaveWishlist(wlId);
         }
-        refreshWlManageList(); bindWlManageHandlers(); render();
+        refreshWlManageList();
+        render();
       }));
-      list.querySelectorAll('[data-wl-share]').forEach((b) => b.addEventListener('click', () => openShareModal(b.dataset.wlShare)));
-      list.querySelectorAll('[data-wl-invite]').forEach((b) => b.addEventListener('click', () => openInviteModal(b.dataset.wlInvite)));
+      list.querySelectorAll('[data-wl-share]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openShareModal(b.dataset.wlShare); }));
+      list.querySelectorAll('[data-wl-invite]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openInviteModal(b.dataset.wlInvite); }));
     }
 
     function bindWlManageHandlers() {
@@ -1734,20 +1858,15 @@
     }
 
     async function addWlInManage() {
-      const name = document.getElementById('newWlName')?.value?.trim();
+      const nameEl = document.getElementById('newWlName');
+      const name = nameEl?.value?.trim();
       if (!name || validateName(name)) return;
       const wl = { id: 'wl_' + Date.now(), name, image: pendingWlImageBase64 || null, privacy: document.getElementById('newWlPrivacy')?.value || 'private', ownerId: currentUserId, coAuthorIds: [currentUserId], updatedAt: Date.now() };
       wishlists.push(wl);
       await saveWishlists();
       pendingWlImageBase64 = null;
-      document.getElementById('newWlName').value = '';
-      const prev = document.getElementById('wlImgPreview');
-      if (prev) { prev.style.display = 'none'; prev.src = ''; }
-      const txt = document.getElementById('wlImgText');
-      if (txt) txt.textContent = 'Добавить обложку (необязательно)';
-      document.getElementById('wlImage').value = '';
-      refreshWlManageList();
-      render();
+      tg?.HapticFeedback?.notificationOccurred?.('success');
+      navigateTo('manageWishlists');
     }
 
     async function removeCollaborator(wlId, userId) {
@@ -1888,41 +2007,71 @@
 
     function renderManageCategories() {
       const content = document.getElementById('content');
+      const defaultTags = ['дорого', 'дешево', 'мечта', 'отпуск', 'семья', 'косметика', 'одежда', 'подарок', 'дом', 'гаджет'];
+      const allTags = [...new Set([...categories, ...defaultTags])];
+
       content.innerHTML = `
-        <button class="btn back-btn" data-nav-back>← Назад</button>
-        <h2 style="margin-bottom:20px;">Категории</h2>
-        <div id="catList" class="cat-list"></div>
-        <div class="cat-add" style="margin-top:16px;">
-          <input type="text" id="newCatName" placeholder="Новая категория">
-          <button class="btn" id="addCatBtn">Добавить</button>
+        <button class="btn btn-slay" id="newTagBtn" style="margin-bottom:20px;width:100%;">+ новый тег</button>
+        <div id="newTagForm" style="display:none;margin-bottom:20px;gap:8px;align-items:center;" class="tag-form-row">
+          <input type="text" id="newCatName" placeholder="Название тега" style="flex:1;padding:10px 14px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-card);color:var(--text-primary);">
+          <button type="button" id="newTagCancel" style="padding:10px;background:none;border:none;cursor:pointer;font-size:1.2rem;">✕</button>
+          <button type="button" class="btn" id="addCatBtn">✓</button>
         </div>
+        <div id="tagCloud" class="tag-cloud"></div>
+        <div id="trashZone" class="trash-zone" data-drop-zone>Перетащи сюда для удаления</div>
       `;
-      content.querySelector('[data-nav-back]').addEventListener('click', () => navigateTo('main'));
-      const list = document.getElementById('catList');
-      list.innerHTML = categories.length === 0
-        ? '<div class="empty-cats">Категорий нет. Добавь свою.</div>'
-        : categories.map((c) => `
-            <div class="cat-item" data-cat="${escapeHtml(c)}">
-              <span>${escapeHtml(c)}</span>
-              <span class="cat-item-remove" data-cat="${escapeHtml(c)}">✕</span>
-            </div>`).join('');
-      list.querySelectorAll('.cat-item-remove').forEach((el) => {
-        el.addEventListener('click', async () => {
-          categories = categories.filter((x) => x !== el.dataset.cat);
-          await saveCategories();
-          renderManageCategories();
-        });
-      });
+
+      const showNewTagForm = () => {
+        document.getElementById('newTagForm').style.display = 'flex';
+        document.getElementById('newTagBtn').style.display = 'none';
+        document.getElementById('newCatName').value = '';
+        document.getElementById('newCatName').focus();
+      };
+      const hideNewTagForm = () => {
+        document.getElementById('newTagForm').style.display = 'none';
+        document.getElementById('newTagBtn').style.display = 'block';
+      };
+
+      document.getElementById('newTagBtn').addEventListener('click', showNewTagForm);
+      document.getElementById('newTagCancel').addEventListener('click', hideNewTagForm);
       document.getElementById('addCatBtn').addEventListener('click', async () => {
         const v = document.getElementById('newCatName').value.trim();
         if (!v || !/^[a-zA-Zа-яА-ЯёЁ0-9\s\-_]+$/.test(v)) return;
         if (categories.includes(v)) return;
         categories.push(v);
         await saveCategories();
-        document.getElementById('newCatName').value = '';
+        hideNewTagForm();
         renderManageCategories();
       });
-      document.getElementById('newCatName').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('addCatBtn').click(); });
+      document.getElementById('newCatName').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') document.getElementById('addCatBtn').click();
+        if (e.key === 'Escape') hideNewTagForm();
+      });
+
+      const cloud = document.getElementById('tagCloud');
+      cloud.innerHTML = allTags.map((c) => {
+        const isUser = categories.includes(c);
+        return `<span class="tag-chip ${isUser ? 'user-tag' : ''}" data-cat="${escapeHtml(c)}" draggable="${isUser}">${escapeHtml(c)}</span>`;
+      }).join('');
+
+      cloud.querySelectorAll('.tag-chip.user-tag').forEach((chip) => {
+        chip.addEventListener('click', () => chip.classList.toggle('selected'));
+        chip.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', chip.dataset.cat); e.dataTransfer.effectAllowed = 'move'; });
+      });
+
+      const trash = document.getElementById('trashZone');
+      trash.addEventListener('dragover', (e) => { e.preventDefault(); trash.classList.add('drag-over'); });
+      trash.addEventListener('dragleave', () => trash.classList.remove('drag-over'));
+      trash.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        trash.classList.remove('drag-over');
+        const cat = e.dataTransfer.getData('text/plain');
+        if (!cat || !categories.includes(cat)) return;
+        categories = categories.filter((x) => x !== cat);
+        await saveCategories();
+        renderManageCategories();
+        tg?.HapticFeedback?.notificationOccurred?.('success');
+      });
     }
 
     function getMyWishes() {
@@ -1935,36 +2084,51 @@
 
     function renderManageWishes() {
       const content = document.getElementById('content');
+      const myWishes = getMyWishes();
       content.innerHTML = `
-        <button class="btn back-btn" data-nav-back>← Назад</button>
-        <h2 style="margin-bottom:20px;">Желания</h2>
+        <div class="sort-filter-bar" style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;">
+          <select id="wishesSortBy" style="padding:8px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-card);color:var(--text-primary);font-size:0.85rem;">
+            <option value="date">По дате</option>
+            <option value="alpha">По алфавиту</option>
+          </select>
+          <select id="wishesFilterTag" style="padding:8px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-card);color:var(--text-primary);font-size:0.85rem;">
+            <option value="">Все теги</option>
+            ${categories.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
+          </select>
+          <select id="wishesFilterWl" style="padding:8px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-card);color:var(--text-primary);font-size:0.85rem;">
+            <option value="">Все вишлисты</option>
+            ${wishlists.filter((wl) => !wl.isFollowedPublic).map((wl) => `<option value="${escapeHtml(wl.id)}">${escapeHtml(wl.name)}</option>`).join('')}
+          </select>
+        </div>
         <button class="btn" id="addWishBtn" style="margin-bottom:16px;">+ Добавить желание</button>
-        <div id="wishList" class="wishlist"></div>
+        <div id="wishList" class="wish-grid"></div>
       `;
-      content.querySelector('[data-nav-back]').addEventListener('click', () => navigateTo('main'));
       document.getElementById('addWishBtn').addEventListener('click', () => openWishModal());
 
-      const myWishes = getMyWishes();
-      const list = document.getElementById('wishList');
-      if (myWishes.length === 0) {
-        list.innerHTML = '<div class="empty-state"><p>Нет желаний. Нажми «Добавить желание».</p></div>';
-        return;
-      }
-      const byCat = {};
-      myWishes.forEach((w) => { const c = w.category || 'Без категории'; if (!byCat[c]) byCat[c] = []; byCat[c].push(w); });
-      const catOrder = [...categories, 'Без категории'].filter((c) => byCat[c]?.length);
-      Object.keys(byCat).forEach((c) => { if (!catOrder.includes(c)) catOrder.push(c); });
-      list.innerHTML = catOrder.map((catName) => {
-        const items = byCat[catName] || [];
-        return `
-          <div class="categories-section">
-            <div class="category-title"><span class="count">${items.length}</span> ${escapeHtml(catName)}</div>
-            <div class="wishlist">${items.map((w) => renderCard(w, { type: 'standalone' }, null)).join('')}</div>
-          </div>`;
-      }).join('');
-      list.querySelectorAll('.btn-edit').forEach((b) => b.addEventListener('click', () => openWishModal(b.dataset.id)));
-      list.querySelectorAll('.btn-del').forEach((b) => b.addEventListener('click', () => deleteWish(b.dataset.id).then(() => render()).catch(() => {})));
-      list.querySelectorAll('.btn-move').forEach((b) => b.addEventListener('click', (e) => toggleMoveMenu(e, b.dataset.id)));
+      const applySortFilter = () => {
+        const sortBy = document.getElementById('wishesSortBy')?.value || 'date';
+        const filterTag = document.getElementById('wishesFilterTag')?.value || '';
+        const filterWl = document.getElementById('wishesFilterWl')?.value || '';
+        let items = [...myWishes];
+        if (filterTag) items = items.filter((w) => (w.category || 'Без категории') === filterTag);
+        if (filterWl) items = items.filter((w) => (w.wishlistIds || []).includes(filterWl));
+        if (sortBy === 'alpha') items.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        else items.sort((a, b) => (parseInt(String(b.id).replace(/\D/g, ''), 10) || 0) - (parseInt(String(a.id).replace(/\D/g, ''), 10) || 0));
+        const list = document.getElementById('wishList');
+        if (items.length === 0) {
+          list.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><p>Нет желаний.</p></div>';
+          return;
+        }
+        list.innerHTML = items.map((w, i) => { let h = renderCard(w, { type: 'standalone' }, null); return (i % 4 === 0) ? h.replace(/class="card/, 'class="card tile-wide') : h; }).join('');
+        list.querySelectorAll('.btn-edit').forEach((b) => b.addEventListener('click', () => openWishModal(b.dataset.id)));
+        list.querySelectorAll('.btn-del').forEach((b) => b.addEventListener('click', () => deleteWish(b.dataset.id).then(() => render()).catch(() => {})));
+        list.querySelectorAll('.btn-move').forEach((b) => b.addEventListener('click', (e) => toggleMoveMenu(e, b.dataset.id)));
+      };
+
+      applySortFilter();
+      document.getElementById('wishesSortBy')?.addEventListener('change', applySortFilter);
+      document.getElementById('wishesFilterTag')?.addEventListener('change', applySortFilter);
+      document.getElementById('wishesFilterWl')?.addEventListener('change', applySortFilter);
     }
 
     async function renderWishlistDetail(wlId) {
@@ -1988,36 +2152,52 @@
       const sec = { type: 'wishlist', wl, wishes: wlWishes };
 
       content.innerHTML = `
-        <button class="btn back-btn" data-nav-back>← Назад</button>
+        <button class="btn back-btn" data-nav-back data-nav-back="manageWishlists">← Назад</button>
         <div class="wl-section-header" style="margin-bottom:16px;">
           ${wl.image ? `<img class="wl-section-img" src="${escapeHtml(wl.image)}" alt="">` : ''}
           <span class="wl-section-title">${escapeHtml(wl.name)}</span>
           ${prLabel ? `<span class="privacy-badge">${escapeHtml(prLabel)}</span>` : ''}
           <span class="wl-header-actions">${shareBtn}${inviteBtn}</span>
         </div>
+        <div class="sort-filter-bar" style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;">
+          <select id="wlSortBy" style="padding:8px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-card);color:var(--text-primary);font-size:0.85rem;">
+            <option value="date">По дате</option>
+            <option value="alpha">По алфавиту</option>
+          </select>
+          <select id="wlFilterTag" style="padding:8px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--bg-card);color:var(--text-primary);font-size:0.85rem;">
+            <option value="">Все теги</option>
+            ${categories.map((c) => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
+          </select>
+        </div>
         <button class="btn" id="addWishToWl" style="margin-bottom:16px;">+ Добавить желание</button>
-        <div id="wlWishlistCards" class="wl-section-body"></div>
+        <div id="wlWishlistCards" class="wish-grid"></div>
       `;
-      content.querySelector('[data-nav-back]').addEventListener('click', () => navigateTo('main'));
+      content.querySelector('[data-nav-back]').addEventListener('click', () => navigateTo('manageWishlists'));
 
-      const cardsEl = document.getElementById('wlWishlistCards');
-      cardsEl.innerHTML = catOrder.length === 0
-        ? '<div class="empty-state"><p>Нет желаний в этом вишлисте.</p></div>'
-        : catOrder.map((catName) => {
-            const items = byCat[catName] || [];
-            return `
-              <div class="categories-section">
-                <div class="category-title"><span class="count">${items.length}</span> ${escapeHtml(catName)}</div>
-                <div class="wishlist">${items.map((w) => renderCard(w, sec, null)).join('')}</div>
-              </div>`;
-          }).join('');
+      const applySortFilter = () => {
+        const sortBy = document.getElementById('wlSortBy')?.value || 'date';
+        const filterTag = document.getElementById('wlFilterTag')?.value || '';
+        let items = [...wlWishes];
+        if (filterTag) items = items.filter((w) => (w.category || 'Без категории') === filterTag);
+        if (sortBy === 'alpha') items.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        else items.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        const cardsEl = document.getElementById('wlWishlistCards');
+        if (!cardsEl) return;
+        cardsEl.innerHTML = items.length === 0
+          ? '<div class="empty-state" style="grid-column:1/-1;"><p>Нет желаний.</p></div>'
+          : items.map((w, i) => { let h = renderCard(w, sec, null); return (i % 4 === 0) ? h.replace(/class="card/, 'class="card tile-wide') : h; }).join('');
+        cardsEl.querySelectorAll('.btn-edit').forEach((b) => b.addEventListener('click', () => openWishModal(b.dataset.id)));
+        cardsEl.querySelectorAll('.btn-del').forEach((b) => b.addEventListener('click', () => deleteWish(b.dataset.id).then(() => { wl.updatedAt = Date.now(); saveWishlists(); render(); }).catch(() => {})));
+        cardsEl.querySelectorAll('.btn-move').forEach((b) => b.addEventListener('click', (e) => toggleMoveMenu(e, b.dataset.id)));
+      };
+
+      applySortFilter();
+      document.getElementById('wlSortBy')?.addEventListener('change', applySortFilter);
+      document.getElementById('wlFilterTag')?.addEventListener('change', applySortFilter);
 
       content.querySelector('#addWishToWl')?.addEventListener('click', () => { openWishModal(null, wlId); });
       content.querySelectorAll('[data-wl-share]').forEach((b) => b.addEventListener('click', () => openShareModal(b.dataset.wlShare)));
       content.querySelectorAll('[data-wl-invite]').forEach((b) => b.addEventListener('click', () => openInviteModal(b.dataset.wlInvite)));
-      cardsEl.querySelectorAll('.btn-edit').forEach((b) => b.addEventListener('click', () => openWishModal(b.dataset.id)));
-      cardsEl.querySelectorAll('.btn-del').forEach((b) => b.addEventListener('click', () => deleteWish(b.dataset.id).then(() => { wl.updatedAt = Date.now(); saveWishlists(); render(); }).catch(() => {})));
-      cardsEl.querySelectorAll('.btn-move').forEach((b) => b.addEventListener('click', (e) => toggleMoveMenu(e, b.dataset.id)));
     }
 
     async function renderFollowedPublicDetail(wlId) {
@@ -3129,21 +3309,6 @@
     });
     document.getElementById('inviteWlModal').addEventListener('click', (e) => { if (e.target.id === 'inviteWlModal') e.target.classList.remove('open'); });
 
-    const tabbar = document.getElementById('tabbar');
-    const headerSlogan = document.getElementById('headerSlogan');
-    function updateTabBar() {
-      const showTabs = !publicViewData && !pendingInviteData && ['main','manageWishlists','manageCategories','manageWishes'].includes(currentView);
-      if (tabbar) tabbar.style.display = showTabs ? 'block' : 'none';
-      if (headerSlogan) headerSlogan.style.display = (currentView === 'main') ? 'block' : 'none';
-      tabbar?.querySelectorAll('.tabbar-btn').forEach((b) => {
-        const v = b.dataset.tab;
-        b.classList.toggle('active', (v === 'main' && currentView === 'main') || (v !== 'main' && currentView === v));
-      });
-    }
-    tabbar?.querySelectorAll('.tabbar-btn').forEach((b) => {
-      b.addEventListener('click', () => { navigateTo(b.dataset.tab || 'main'); });
-    });
-
     (function(){var h=document.getElementById('mainHeader');if(h){var t=0,n=0;h.addEventListener('click',function(){var now=Date.now();if(now-t>1200)n=0;t=now;n++;if(n>=5){n=0;if(typeof loadEruda==='function')loadEruda();}});}})();
 
     (async function init() {
@@ -3155,6 +3320,8 @@
         if (!Array.isArray(wishlists)) wishlists = [];
         if (!Array.isArray(wishes)) wishes = [];
         if (!Array.isArray(categories)) categories = [];
+        bindActionButtons();
+        document.getElementById('tabHome')?.classList.add('active');
         render();
       } catch (e) {
         console.error('Init/render error:', e);
