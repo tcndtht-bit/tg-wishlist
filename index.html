@@ -952,6 +952,10 @@
         isLoading = false; currentView = 'main'; render();
         const extracted = { name: payload.n || 'N/A', price: payload.p ?? null, currency: payload.c ?? null, size: payload.s ?? null };
         const loadDataThenOpen = async () => {
+          const overlay = document.getElementById('analysisOverlay');
+          const overlayText = document.getElementById('analysisOverlayText');
+          if (overlay) overlay.classList.add('visible');
+          if (overlayText) overlayText.textContent = 'Загружаем карточку…';
           try {
             await Promise.race([
               (async () => {
@@ -975,10 +979,14 @@
             ]);
           } catch (_) {}
           isLoading = false; render();
-          const imageSrc = (payload.i && typeof payload.i === 'string')
-            ? (payload.i.startsWith('http') ? payload.i : 'data:image/jpeg;base64,' + payload.i)
-            : PLACEHOLDER_IMAGE;
-          openWishModalFromImage(imageSrc, extracted);
+          try {
+            const imageSrc = (payload.i && typeof payload.i === 'string')
+              ? (payload.i.startsWith('http') ? payload.i : 'data:image/jpeg;base64,' + payload.i)
+              : PLACEHOLDER_IMAGE;
+            openWishModalFromImage(imageSrc, extracted);
+          } finally {
+            document.getElementById('analysisOverlay')?.classList.remove('visible');
+          }
         };
         loadDataThenOpen();
         return;
@@ -989,6 +997,10 @@
         isLoading = false; currentView = 'main'; render();
         const extracted = { name: payload.n || 'Желание', price: payload.p ?? null, currency: payload.c ?? null, size: payload.s ?? null };
         const loadDataThenOpen = async () => {
+          const overlay = document.getElementById('analysisOverlay');
+          const overlayText = document.getElementById('analysisOverlayText');
+          if (overlay) overlay.classList.add('visible');
+          if (overlayText) overlayText.textContent = 'Загружаем карточку…';
           try {
             await Promise.race([
               (async () => {
@@ -1010,7 +1022,11 @@
             ]);
           } catch (_) {}
           isLoading = false; render();
-          openWishModalFromText(extracted);
+          try {
+            openWishModalFromText(extracted);
+          } finally {
+            document.getElementById('analysisOverlay')?.classList.remove('visible');
+          }
         };
         loadDataThenOpen();
         return;
@@ -1030,6 +1046,10 @@
           imageBase64: null
         };
         const loadDataThenOpen = async () => {
+          const overlay = document.getElementById('analysisOverlay');
+          const overlayText = document.getElementById('analysisOverlayText');
+          if (overlay) overlay.classList.add('visible');
+          if (overlayText) overlayText.textContent = 'Загружаем карточку…';
           try {
             await Promise.race([
               (async () => {
@@ -1051,7 +1071,11 @@
             ]);
           } catch (_) {}
           isLoading = false; render();
-          openWishModalFromLink(extracted, targetUrl);
+          try {
+            openWishModalFromLink(extracted, targetUrl);
+          } finally {
+            document.getElementById('analysisOverlay')?.classList.remove('visible');
+          }
         };
         loadDataThenOpen();
         return;
