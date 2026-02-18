@@ -626,7 +626,7 @@
     const DEFAULT_CATS = ['день рождения', 'новый год', 'без повода', 'разное'];
     const PLACEHOLDER_IMAGE = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"><rect fill="#c8c8c8" width="400" height="300"/><text x="200" y="155" fill="white" font-family="sans-serif" font-size="28" font-weight="bold" text-anchor="middle">PLACEHOLDER</text><line x1="0" y1="0" x2="400" y2="300" stroke="white" stroke-width="8"/><line x1="400" y1="0" x2="0" y2="300" stroke="white" stroke-width="8"/></svg>');
     const PRIVACY_VALUES = ['private', 'public', 'shared'];
-    const NAME_RE = /^[a-zA-Zа-яА-ЯёЁ0-9\s\-_.,!?()]*$/;
+    const NAME_RE = /^[a-zA-Zа-яА-ЯёЁ0-9\s\-_.,!?()'"&/\u2026]*$/;
     const SIZE_RE = /^[a-zA-Z0-9\s\-.]*$/;
     const URL_RE = /^(https?:\/\/)?([\w-]+\.)+[\w-]+(\/[\w\-./?%&=]*)?$/i;
 
@@ -1481,7 +1481,7 @@
     function validateName(v) {
       if (!v || !v.trim()) return 'Обязательное поле';
       if (v.length > 100) return 'Макс. 100 символов';
-      if (!NAME_RE.test(v)) return 'Только латиница и кириллица';
+      if (!NAME_RE.test(v)) return 'Допустимы буквы, цифры, пробелы и знаки: - _ . , ! ? ( ) \' " & / …';
       return null;
     }
 
