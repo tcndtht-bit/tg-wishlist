@@ -2539,12 +2539,18 @@
     }
 
     function updateCounters() {
-      document.getElementById('nameCounter').textContent = `${(document.getElementById('wishName').value || '').length}/100`;
-      document.getElementById('commentCounter').textContent = `${(document.getElementById('wishComment').value || '').length}/500`;
+      try {
+        const nameEl = document.getElementById('nameCounter');
+        const commentEl = document.getElementById('commentCounter');
+        const wishName = document.getElementById('wishName');
+        const wishComment = document.getElementById('wishComment');
+        if (nameEl && wishName) nameEl.textContent = `${(wishName.value || '').length}/100`;
+        if (commentEl && wishComment) commentEl.textContent = `${(wishComment.value || '').length}/500`;
+      } catch (_) {}
     }
 
-    document.getElementById('wishName').addEventListener('input', () => { updateCounters(); updateClosingConfirmation(); });
-    document.getElementById('wishComment').addEventListener('input', () => { updateCounters(); updateClosingConfirmation(); });
+    document.getElementById('wishName')?.addEventListener('input', () => { updateCounters(); updateClosingConfirmation(); });
+    document.getElementById('wishComment')?.addEventListener('input', () => { updateCounters(); updateClosingConfirmation(); });
     
     // Отслеживаем изменения в других полях формы для предупреждения о закрытии
     ['wishLink', 'wishPrice', 'wishSize', 'wishWishlist'].forEach((id) => {
