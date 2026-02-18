@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Вишлист</title>
   <link rel="icon" href="data:,">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script>
     function loadEruda(){try{localStorage.setItem('eruda','1');var e=document.createElement('script');e.src='https://cdn.jsdelivr.net/npm/eruda';e.onload=function(){eruda.init();};document.head.appendChild(e);}catch(x){}}
@@ -12,44 +15,73 @@
   </script>
   <style>
     :root {
-      --bg-primary: #1a1a2e;
-      --bg-secondary: #16213e;
-      --bg-card: #0f3460;
-      --accent: #e94560;
-      --text-primary: #eaeaea;
-      --text-secondary: #a0a0a0;
-      --border: rgba(255,255,255,0.1);
-      --shadow: 0 4px 20px rgba(0,0,0,0.3);
+      --bg-primary: #FDFBFF;
+      --bg-secondary: #ffffff;
+      --bg-card: #ffffff;
+      --accent: #8B5CF6;
+      --text-primary: #1a1a2e;
+      --text-secondary: #6B7280;
+      --border: rgba(196,181,253,0.25);
+      --shadow: 0 4px 20px rgba(0,0,0,0.06);
+      --gradient-1: #C0FF00;
+      --gradient-2: #A78BFA;
+      --gradient-3: #FF6B9D;
+      --font-main: 'Space Grotesk', -apple-system, sans-serif;
+      --font-body: 'Inter', -apple-system, sans-serif;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: var(--font-main);
       background: var(--bg-primary);
       color: var(--text-primary);
       min-height: 100vh;
       padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      position: relative;
+      overflow-x: hidden;
     }
     body.light {
-      --bg-primary: #f5f5f7;
+      --bg-primary: #FDFBFF;
       --bg-secondary: #ffffff;
       --bg-card: #ffffff;
-      --text-primary: #1d1d1f;
-      --text-secondary: #6e6e73;
-      --border: rgba(0,0,0,0.1);
-      --shadow: 0 4px 20px rgba(0,0,0,0.08);
+      --text-primary: #1a1a2e;
+      --text-secondary: #6B7280;
+      --border: rgba(196,181,253,0.25);
+      --shadow: 0 4px 20px rgba(0,0,0,0.06);
     }
-    .container { max-width: 480px; margin: 0 auto; padding: 16px; }
+    .blobs { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
+    .blob { position: absolute; border-radius: 50%; }
+    .blob-1 { width: 280px; height: 280px; top: -60px; right: -40px; background: radial-gradient(circle, rgba(192,255,0,0.22) 0%, rgba(192,255,0,0) 70%); animation: blobFloat1 8s ease-in-out infinite; }
+    .blob-2 { width: 320px; height: 320px; top: 30%; left: -80px; background: radial-gradient(circle, rgba(196,181,253,0.2) 0%, rgba(196,181,253,0) 70%); animation: blobFloat2 10s ease-in-out infinite; }
+    .blob-3 { width: 250px; height: 250px; bottom: 15%; right: -30px; background: radial-gradient(circle, rgba(255,107,157,0.15) 0%, rgba(255,107,157,0) 70%); animation: blobFloat3 12s ease-in-out infinite; }
+    .blob-4 { width: 200px; height: 200px; top: 60%; left: 30%; background: radial-gradient(circle, rgba(0,255,135,0.08) 0%, rgba(0,255,135,0) 70%); animation: blobFloat1 14s ease-in-out infinite reverse; }
+    @keyframes blobFloat1 { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(30px,-20px) scale(1.1)} 66%{transform:translate(-15px,15px) scale(0.95)} }
+    @keyframes blobFloat2 { 0%,100%{transform:translate(0,0) scale(1)} 33%{transform:translate(-25px,25px) scale(1.05)} 66%{transform:translate(20px,-10px) scale(0.9)} }
+    @keyframes blobFloat3 { 0%,100%{transform:translate(0,0) scale(1)} 50%{transform:translate(-20px,-30px) scale(1.08)} }
+    .container { max-width: 480px; margin: 0 auto; padding: 16px; padding-bottom: 90px; position: relative; z-index: 1; }
     header {
       display: flex;
       justify-content: space-between;
       align-items: center;
       padding: 12px 0 20px;
-      border-bottom: 1px solid var(--border);
+      border-bottom: none;
+    }
+    .header-gradient {
+      font-family: var(--font-main);
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--gradient-1) 0%, var(--gradient-2) 40%, var(--gradient-3) 80%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      text-align: center;
+      width: 100%;
     }
     h1 { font-size: 1.5rem; font-weight: 700; }
+    .header-slogan { text-align: center; font-size: 13px; color: var(--gradient-2); letter-spacing: 0.05em; margin-top: 4px; margin-bottom: 16px; }
     .btn {
-      background: var(--accent);
-      color: white;
+      background: linear-gradient(135deg, var(--gradient-1), var(--gradient-2));
+      color: #1a1a2e;
       border: none;
       padding: 10px 18px;
       border-radius: 12px;
@@ -57,12 +89,14 @@
       font-weight: 600;
       cursor: pointer;
       transition: transform 0.1s;
+      font-family: var(--font-main);
     }
     .btn:active { transform: scale(0.97); }
     .btn-secondary {
-      background: var(--bg-card);
+      background: rgba(255,255,255,0.8);
       color: var(--text-primary);
       border: 1px solid var(--border);
+      backdrop-filter: blur(8px);
     }
     .btn-sm { font-size: 0.8rem; padding: 6px 12px; }
     .btn-icon {
@@ -299,6 +333,27 @@
     .view-readonly .btn-edit, .view-readonly .btn-del, .view-readonly .btn-move { display: none !important; }
     .main-buttons { display: flex; flex-direction: column; gap: 12px; margin-bottom: 32px; }
     .main-buttons .btn { width: 100%; justify-content: center; }
+    .main-home-wrap { position: relative; padding-bottom: 80px; }
+    .main-home-buttons { position: absolute; right: 0; top: 0; display: flex; flex-direction: column; gap: 12px; z-index: 5; }
+    .main-home-btn { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border: none; border-radius: 16px; font-family: var(--font-main); font-weight: 600; font-size: 11px; cursor: pointer; transition: transform 0.1s; backdrop-filter: blur(10px); }
+    .main-home-btn:active { transform: scale(0.97); }
+    .main-home-btn.photo { background: linear-gradient(135deg, rgba(192,255,0,0.85), rgba(167,139,250,0.85)); color: #1a1a2e; box-shadow: 0 2px 12px rgba(192,255,0,0.3); }
+    .main-home-btn.link { background: linear-gradient(135deg, rgba(255,107,157,0.85), rgba(167,139,250,0.85)); color: #fff; box-shadow: 0 2px 12px rgba(255,107,157,0.3); }
+    .live-feed { margin-top: 16px; padding-right: 90px; }
+    .live-feed-title { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 12px; font-weight: 600; color: #6B7280; text-transform: uppercase; letter-spacing: 0.05em; }
+    .live-feed-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gradient-1); box-shadow: 0 0 8px rgba(192,255,0,0.6); animation: pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.6;transform:scale(0.9)} }
+    .live-feed-item { background: rgba(255,255,255,0.7); backdrop-filter: blur(12px); border: 1px solid rgba(196,181,253,0.2); border-radius: 16px; padding: 12px 14px; margin-bottom: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    .recent-item.live-feed-item { cursor: pointer; transition: transform 0.1s; }
+    .recent-item.live-feed-item:active { transform: scale(0.98); }
+    .live-feed-item p { font-family: var(--font-body); font-size: 13px; color: #374151; line-height: 1.5; margin: 0 0 4px 0; }
+    .live-feed-item span { font-size: 10px; color: #9CA3AF; }
+    .tabbar { position: fixed; bottom: 0; left: 0; right: 0; z-index: 50; background: rgba(255,255,255,0.75); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-top: 1px solid rgba(200,180,255,0.3); }
+    .tabbar-inner { max-width: 480px; margin: 0 auto; display: flex; justify-content: space-around; padding: 8px 8px max(8px, env(safe-area-inset-bottom)) 8px; }
+    .tabbar-btn { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 16px; border: none; background: transparent; border-radius: 12px; cursor: pointer; font-family: var(--font-main); font-size: 10px; color: #9CA3AF; transition: all 0.2s; }
+    .tabbar-btn:hover { color: #6B7280; }
+    .tabbar-btn.active { background: linear-gradient(135deg, rgba(192,255,0,0.25), rgba(196,181,253,0.25)); color: #7C3AED; font-weight: 600; transform: scale(1.02); }
+    .tabbar-btn.active .tabbar-icon { color: #8B5CF6; filter: drop-shadow(0 0 6px rgba(139,92,246,0.4)); }
     .section-title { font-size: 1rem; color: var(--text-secondary); margin-bottom: 12px; }
     .recent-list { display: flex; flex-direction: column; gap: 8px; }
     .recent-item {
@@ -355,22 +410,47 @@
   </style>
 </head>
 <body>
-  <!-- v:2025-02-15-3 -->
+  <!-- v:2025-02-15-4 -->
+  <div class="blobs">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+    <div class="blob blob-4"></div>
+  </div>
   <div class="container">
     <header id="mainHeader">
-      <h1>Желай, как никогда прежде</h1>
+      <h1 class="header-gradient">I Want That So Bad</h1>
     </header>
+    <p id="headerSlogan" class="header-slogan">Желай, как никогда прежде</p>
 
     <div id="content">
-      <div class="main-buttons">
-        <button class="btn" data-nav="manageWishlists" onclick="window.__nav&&window.__nav('manageWishlists')">Вишлисты</button>
-        <button class="btn btn-secondary" data-nav="manageCategories" onclick="window.__nav&&window.__nav('manageCategories')">Категории</button>
-        <button class="btn btn-secondary" data-nav="manageWishes" onclick="window.__nav&&window.__nav('manageWishes')">Желания</button>
+      <div class="main-home-wrap">
+        <div class="live-feed">
+          <div class="live-feed-title"><span class="live-feed-dot"></span> Live Feed</div>
+          <div class="skeleton skeleton-recent"></div>
+          <div class="skeleton skeleton-recent"></div>
+          <div class="skeleton skeleton-recent"></div>
+        </div>
       </div>
-      <h3 class="section-title">Недавно изменённые</h3>
-      <div class="recent-list"><p style="color:var(--text-secondary);font-size:0.9rem;">Нет вишлистов</p></div>
     </div>
   </div>
+
+  <nav class="tabbar" id="tabbar">
+    <div class="tabbar-inner">
+      <button type="button" class="tabbar-btn active" data-tab="main" aria-label="Домой">
+        <span class="tabbar-icon">🏠</span> Домой
+      </button>
+      <button type="button" class="tabbar-btn" data-tab="manageWishlists" aria-label="Вишлисты">
+        <span class="tabbar-icon">📋</span> Вишлисты
+      </button>
+      <button type="button" class="tabbar-btn" data-tab="manageCategories" aria-label="Теги">
+        <span class="tabbar-icon">🏷️</span> Теги
+      </button>
+      <button type="button" class="tabbar-btn" data-tab="manageWishes" aria-label="Желания">
+        <span class="tabbar-icon">✨</span> Желания
+      </button>
+    </div>
+  </nav>
 
   <div class="analysis-overlay" id="analysisOverlay">
     <div class="analysis-spinner"></div>
@@ -1250,35 +1330,41 @@
       });
       const recent = [...visibleWishlists]
         .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-        .slice(0, 3);
+        .slice(0, 5);
+      const formatTime = (ts) => {
+        if (!ts) return '';
+        const d = Date.now() - (ts || 0);
+        if (d < 60000) return 'только что';
+        if (d < 3600000) return Math.floor(d/60000) + ' мин назад';
+        if (d < 86400000) return Math.floor(d/3600000) + ' ч назад';
+        return 'недавно';
+      };
 
       content.innerHTML = `
-        <div class="main-buttons">
-          <button class="btn" data-nav="manageWishlists">Вишлисты</button>
-          <button class="btn btn-secondary" data-nav="manageCategories">Категории</button>
-          <button class="btn btn-secondary" data-nav="manageWishes">Желания</button>
-        </div>
-        <h3 class="section-title">Недавно изменённые</h3>
-        <div class="recent-list" id="recentList">
-          ${isLoading
-            ? '<div class="skeleton skeleton-recent"></div><div class="skeleton skeleton-recent"></div><div class="skeleton skeleton-recent"></div>'
-            : (recent.length === 0
-              ? '<p style="color:var(--text-secondary);font-size:0.9rem;">Нет вишлистов</p>'
-              : recent.map((wl) => `
-                <div class="recent-item" data-wl-id="${escapeHtml(wl.id)}">
-                  ${wl.image ? `<img src="${escapeHtml(wl.image)}" alt="">` : '<div style="width:44px;height:44px;background:var(--border);border-radius:8px;"></div>'}
-                  <span>${escapeHtml(wl.name)}</span>
-                </div>
-              `).join(''))}
-        </div>
-        <div style="margin-top:24px;display:flex;flex-direction:column;gap:8px;">
-          <button type="button" class="btn btn-secondary" id="addByPhotoBtn" style="width:100%;">
-            📸 Добавить желание по фото
-          </button>
-          <button type="button" class="btn btn-secondary" id="addByLinkBtn" style="width:100%;">
-            🔗 Добавить желание по ссылке
-          </button>
-          <input type="file" id="addByPhotoInput" accept="image/*" style="display:none;">
+        <div class="main-home-wrap">
+          <div class="main-home-buttons">
+            <button type="button" class="main-home-btn photo" id="addByPhotoBtn">📸 По фото</button>
+            <button type="button" class="main-home-btn link" id="addByLinkBtn">🔗 По ссылке</button>
+          </div>
+          <div class="live-feed">
+            <div class="live-feed-title">
+              <span class="live-feed-dot"></span>
+              Live Feed
+            </div>
+            <div id="recentList" class="live-feed-list">
+              ${isLoading
+                ? '<div class="skeleton skeleton-recent"></div><div class="skeleton skeleton-recent"></div><div class="skeleton skeleton-recent"></div>'
+                : (recent.length === 0
+                  ? '<div class="live-feed-item"><p>Нет недавней активности. Добавь желание по фото или ссылке!</p><span>—</span></div>'
+                  : recent.map((wl) => `
+                    <div class="recent-item live-feed-item" data-wl-id="${escapeHtml(wl.id)}">
+                      <p>${escapeHtml(wl.name)}</p>
+                      <span>${formatTime(wl.updatedAt)}</span>
+                    </div>
+                  `).join(''))}
+            </div>
+          </div>
+          <input type="file" id="addByPhotoInput" accept="image/*" capture="environment" style="display:none;">
         </div>
       `;
 
@@ -1501,10 +1587,12 @@
       if (pendingInviteData) {
         document.getElementById('inviteConsentText').textContent = `${pendingInviteData.ownerName} приглашает вас стать соавтором вишлиста «${pendingInviteData.wlName}». Вы сможете добавлять и редактировать желания.`;
         document.getElementById('inviteConsentModal').classList.add('open');
+        if (typeof updateTabBar === 'function') updateTabBar();
         return;
       }
       if (publicViewData) {
         renderPublicView();
+        if (typeof updateTabBar === 'function') updateTabBar();
         if (!shareWelcomeShown) {
           const owner = publicViewData.ownerName || 'Пользователь';
           const wlName = publicViewData.wishlist?.name || 'Вишлист';
@@ -1518,32 +1606,38 @@
       if (!content) return;
       if (currentView === 'main') {
         renderMain();
+        if (typeof updateTabBar === 'function') updateTabBar();
         return;
       }
       if (currentView === 'manageWishlists') {
         renderManageWishlists();
+        if (typeof updateTabBar === 'function') updateTabBar();
         return;
       }
       if (currentView === 'manageCategories') {
         renderManageCategories();
+        if (typeof updateTabBar === 'function') updateTabBar();
         return;
       }
       if (currentView === 'manageWishes') {
         renderManageWishes();
+        if (typeof updateTabBar === 'function') updateTabBar();
         return;
       }
       if (currentView === 'wishlist' && selectedWlId) {
         renderWishlistDetail(selectedWlId);
+        if (typeof updateTabBar === 'function') updateTabBar();
         return;
       }
       renderMain();
+      if (typeof updateTabBar === 'function') updateTabBar();
     }
 
     function renderManageWishlists() {
       const content = document.getElementById('content');
       content.innerHTML = `
         <button class="btn back-btn" data-nav-back>← Назад</button>
-        <h2 style="margin-bottom:20px;">Вишлисты</h2>
+        <h2 style="margin-bottom:20px;font-family:var(--font-main);">Вишлисты</h2>
         <div id="wlList" class="wl-manage-list"></div>
         <div id="wlAddForm" class="wl-form-section" style="margin-top:24px;">
           <h3 style="margin-bottom:12px;">Добавить вишлист</h3>
@@ -3034,6 +3128,21 @@
       setTimeout(() => { document.getElementById('inviteWlCopy').textContent = 'Копировать'; }, 2000);
     });
     document.getElementById('inviteWlModal').addEventListener('click', (e) => { if (e.target.id === 'inviteWlModal') e.target.classList.remove('open'); });
+
+    const tabbar = document.getElementById('tabbar');
+    const headerSlogan = document.getElementById('headerSlogan');
+    function updateTabBar() {
+      const showTabs = !publicViewData && !pendingInviteData && ['main','manageWishlists','manageCategories','manageWishes'].includes(currentView);
+      if (tabbar) tabbar.style.display = showTabs ? 'block' : 'none';
+      if (headerSlogan) headerSlogan.style.display = (currentView === 'main') ? 'block' : 'none';
+      tabbar?.querySelectorAll('.tabbar-btn').forEach((b) => {
+        const v = b.dataset.tab;
+        b.classList.toggle('active', (v === 'main' && currentView === 'main') || (v !== 'main' && currentView === v));
+      });
+    }
+    tabbar?.querySelectorAll('.tabbar-btn').forEach((b) => {
+      b.addEventListener('click', () => { navigateTo(b.dataset.tab || 'main'); });
+    });
 
     (function(){var h=document.getElementById('mainHeader');if(h){var t=0,n=0;h.addEventListener('click',function(){var now=Date.now();if(now-t>1200)n=0;t=now;n++;if(n>=5){n=0;if(typeof loadEruda==='function')loadEruda();}});}})();
 
