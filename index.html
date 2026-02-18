@@ -1280,7 +1280,7 @@
             if (overlayText) overlayText.textContent = 'Подготавливаю фото…';
             let imageBase64 = await fileToBase64(file);
             if (overlayText) overlayText.textContent = 'Отправляю фото…';
-            imageBase64 = await resizeImageBase64(imageBase64, 1024, 0.85);
+            imageBase64 = await resizeImageBase64(imageBase64, 960, 0.8);
             let extracted = { name: '', price: null, currency: null, size: null };
             if (API_BASE_URL && API_BASE_URL.startsWith('http')) {
               if (overlayText) overlayText.textContent = 'Анализирую…';
@@ -2131,6 +2131,7 @@
     function openWishModalFromLink(extractedData, link) {
       window._wishFromLink = true;
       window._wishFromImage = false;
+      window._stashedImageFromPhoto = null;
       tg?.HapticFeedback?.impactOccurred?.('light');
       const imgSrc = extractedData?.imageBase64 || extractedData?.image || null;
       pendingImageBase64 = extractedData?.imageBase64 || extractedData?.image || null;
@@ -2225,6 +2226,7 @@
     function openWishModalFromText(extractedData) {
       window._wishFromLink = true;
       window._wishFromImage = false;
+      window._stashedImageFromPhoto = null;
       tg?.HapticFeedback?.impactOccurred?.('light');
       pendingImageBase64 = PLACEHOLDER_IMAGE;
       const form = document.getElementById('wishForm');
@@ -2313,9 +2315,10 @@
     function openWishModalFromImage(imageBase64, extractedData) {
       window._wishFromLink = false;
       window._wishFromImage = true;
-      tg?.HapticFeedback?.impactOccurred?.('light');
       const hasRealImage = imageBase64 && imageBase64 !== PLACEHOLDER_IMAGE;
+      window._stashedImageFromPhoto = hasRealImage ? imageBase64 : null;
       pendingImageBase64 = hasRealImage ? imageBase64 : null;
+      tg?.HapticFeedback?.impactOccurred?.('light');
       const form = document.getElementById('wishForm');
       form.reset();
       document.getElementById('wishId').value = '';
@@ -2415,6 +2418,7 @@
     function openWishModal(editId = null, defaultWlId = null) {
       window._wishFromLink = false;
       window._wishFromImage = false;
+      window._stashedImageFromPhoto = null;
       tg?.HapticFeedback?.impactOccurred?.('light');
       pendingImageBase64 = null;
       const form = document.getElementById('wishForm');
@@ -2501,6 +2505,7 @@
     function closeWishModal() {
       document.getElementById('wishModal').classList.remove('open');
       window._wishFromImage = false;
+      window._stashedImageFromPhoto = null;
       updateClosingConfirmation();
     }
 
@@ -2552,8 +2557,9 @@
       document.getElementById('imgError').style.display = 'none';
       try {
         let b64 = await fileToBase64(file);
-        b64 = await resizeImageBase64(b64);
+        b64 = await resizeImageBase64(b64, 960, 0.8);
         pendingImageBase64 = b64;
+        if (window._wishFromImage) window._stashedImageFromPhoto = b64;
         document.getElementById('imgPreview').src = b64;
         document.getElementById('imgPreview').style.display = 'block';
         document.getElementById('imgUploadText').textContent = 'Изменить фото';
@@ -2583,7 +2589,7 @@
         if (el) { el.style.display = 'none'; el.textContent = ''; }
       });
 
-      const hasValidImage = pendingImageBase64 && pendingImageBase64 !== PLACEHOLDER_IMAGE;
+      const hasValidImage = (pendingImageBase64 && pendingImageBase64 !== PLACEHOLDER_IMAGE) || (window._wishFromImage && window._stashedImageFromPhoto);
       if (isNew && window._wishFromImage && !hasValidImage) {
         document.getElementById('imgError').textContent = 'Изображение обязательно для карточки по фото';
         document.getElementById('imgError').style.display = 'block';
@@ -2619,9 +2625,11 @@
         return;
       }
 
-      const imageForSave = (pendingImageBase64 && pendingImageBase64 !== PLACEHOLDER_IMAGE)
-        ? pendingImageBase64
-        : (wishes.find((x) => x.id === id)?.image);
+      const imageForSave = (window._wishFromImage && window._stashedImageFromPhoto)
+        ? window._stashedImageFromPhoto
+        : (pendingImageBase64 && pendingImageBase64 !== PLACEHOLDER_IMAGE)
+          ? pendingImageBase64
+          : (wishes.find((x) => x.id === id)?.image);
       const payload = {
         id: id || 'w_' + Date.now(),
         name,
