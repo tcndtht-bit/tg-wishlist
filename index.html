@@ -623,7 +623,7 @@
     const WISHES_KEY = 'wishlist_wishes';
     const CATS_KEY = 'wishlist_categories';
     const WISHLISTS_KEY = 'wishlist_folders';
-    const DEFAULT_CATS = ['день рождения', 'новый год', 'без повода', 'разное'];
+    const DEFAULT_CATS = [];
     const PLACEHOLDER_IMAGE = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"><rect fill="#c8c8c8" width="400" height="300"/><text x="200" y="155" fill="white" font-family="sans-serif" font-size="28" font-weight="bold" text-anchor="middle">PLACEHOLDER</text><line x1="0" y1="0" x2="400" y2="300" stroke="white" stroke-width="8"/><line x1="400" y1="0" x2="0" y2="300" stroke="white" stroke-width="8"/></svg>');
     const PRIVACY_VALUES = ['private', 'public', 'shared'];
     const NAME_RE = /^[a-zA-Zа-яА-ЯёЁ0-9\s\-_.,!?()'"&/\x7C\u00A6\u2016\u2223\u2758\u2026]*$/;
@@ -727,7 +727,7 @@
     try { currentUserId = getCurrentUserId(); } catch (_) { currentUserId = 'anon_' + Date.now(); }
 
     let wishes = [];
-    let categories = [...DEFAULT_CATS];
+    let categories = [];
     let wishlists = [];
     let pendingImageBase64 = null;
     let pendingWlImageBase64 = null;
@@ -1025,13 +1025,13 @@
                   wishes = await loadWishesFromSupabase(new Set(wishlists.map((w) => w.id)));
                   wishes = Array.isArray(wishes) ? wishes : [];
                   const cats = await loadCategoriesFromSupabase();
-                  categories = Array.isArray(cats) && cats.length ? cats : [...DEFAULT_CATS];
+                  categories = Array.isArray(cats) && cats.length ? cats : [];
                 } else {
                   wishes = loadWishesSync(); wishes = Array.isArray(wishes) ? wishes : [];
                   try { wishlists = (JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
                   wishlists = Array.isArray(wishlists) ? wishlists : [];
-                  try { const raw = safeGetItem(CATS_KEY); categories = raw ? JSON.parse(raw) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
-                  categories = Array.isArray(categories) ? categories : [...DEFAULT_CATS];
+                  try { const raw = safeGetItem(CATS_KEY); categories = raw ? JSON.parse(raw) : []; } catch (_) { categories = []; }
+                  categories = Array.isArray(categories) ? categories : [];
                 }
               })(),
               new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000))
@@ -1062,11 +1062,11 @@
                   wishes = await loadWishesFromSupabase(new Set(wishlists.map((w) => w.id)));
                   wishes = Array.isArray(wishes) ? wishes : [];
                   const cats = await loadCategoriesFromSupabase();
-                  categories = Array.isArray(cats) && cats.length ? cats : [...DEFAULT_CATS];
+                  categories = Array.isArray(cats) && cats.length ? cats : [];
                 } else {
                   wishes = loadWishesSync(); wishes = Array.isArray(wishes) ? wishes : [];
                   try { wishlists = (JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
-                  try { const raw = safeGetItem(CATS_KEY); categories = raw ? JSON.parse(raw) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
+                  try { const raw = safeGetItem(CATS_KEY); categories = raw ? JSON.parse(raw) : []; } catch (_) { categories = []; }
                 }
               })(),
               new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000))
@@ -1103,11 +1103,11 @@
                   wishes = await loadWishesFromSupabase(new Set(wishlists.map((w) => w.id)));
                   wishes = Array.isArray(wishes) ? wishes : [];
                   const cats = await loadCategoriesFromSupabase();
-                  categories = Array.isArray(cats) && cats.length ? cats : [...DEFAULT_CATS];
+                  categories = Array.isArray(cats) && cats.length ? cats : [];
                 } else {
                   wishes = loadWishesSync(); wishes = Array.isArray(wishes) ? wishes : [];
                   try { wishlists = (JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
-                  try { const raw = safeGetItem(CATS_KEY); categories = raw ? JSON.parse(raw) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
+                  try { const raw = safeGetItem(CATS_KEY); categories = raw ? JSON.parse(raw) : []; } catch (_) { categories = []; }
                 }
               })(),
               new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 8000))
@@ -1130,7 +1130,7 @@
           if (publicViewData) {
             await ensureUser();
             await addFollowedPublicWishlist(shortW[1]);
-            wishes = []; categories = [...DEFAULT_CATS]; wishlists = [];
+            wishes = []; categories = []; wishlists = [];
             history.replaceState(null, '', window.location.pathname + '#w/' + shortW[1]);
             isLoading = false;
             return;
@@ -1159,7 +1159,7 @@
         if (data?.type === 'public' && data?.wishlist?.id) {
           publicViewData = data;
           if (useSupabase && sb) { await ensureUser(); await addFollowedPublicWishlist(data.wishlist.id); }
-          wishes = []; categories = [...DEFAULT_CATS]; wishlists = [];
+          wishes = []; categories = []; wishlists = [];
           isLoading = false;
           return;
         }
@@ -1196,14 +1196,14 @@
         ]);
         wishes = Array.isArray(wishesRes) ? wishesRes : [];
         const cats = Array.isArray(catsRes) ? catsRes : [];
-        categories = cats.length ? cats : [...DEFAULT_CATS];
+        categories = cats.length ? cats : [];
       } else {
         wishes = loadWishesSync();
         wishes = Array.isArray(wishes) ? wishes : [];
         try { wishlists = (JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
         wishlists = Array.isArray(wishlists) ? wishlists : [];
-        try { const raw = safeGetItem(CATS_KEY); categories = raw ? JSON.parse(raw) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
-        categories = Array.isArray(categories) ? categories : [...DEFAULT_CATS];
+        try { const raw = safeGetItem(CATS_KEY); categories = raw ? JSON.parse(raw) : []; } catch (_) { categories = []; }
+        categories = Array.isArray(categories) ? categories : [];
       }
     }
 
@@ -1522,7 +1522,7 @@
     function render() {
       if (!Array.isArray(wishlists)) wishlists = [];
       if (!Array.isArray(wishes)) wishes = [];
-      if (!Array.isArray(categories)) categories = [...DEFAULT_CATS];
+      if (!Array.isArray(categories)) categories = [];
       if (pendingInviteData) {
         document.getElementById('inviteConsentText').textContent = `${pendingInviteData.ownerName} приглашает вас стать соавтором вишлиста «${pendingInviteData.wlName}». Вы сможете добавлять и редактировать желания.`;
         document.getElementById('inviteConsentModal').classList.add('open');
@@ -3022,7 +3022,7 @@
         currentView = 'main';
         if (!Array.isArray(wishlists)) wishlists = [];
         if (!Array.isArray(wishes)) wishes = [];
-        if (!Array.isArray(categories)) categories = [...DEFAULT_CATS];
+        if (!Array.isArray(categories)) categories = [];
         render();
       } catch (e) {
         console.error('Init/render error:', e);
@@ -3034,15 +3034,15 @@
         publicViewData = null;
         currentView = 'main';
         if (useSupabase) {
-          wishes = []; wishlists = []; categories = [...DEFAULT_CATS];
+          wishes = []; wishlists = []; categories = [];
         } else {
           try { wishes = JSON.parse(safeGetItem(WISHES_KEY) || '[]').map(migrateWish); } catch (_) { wishes = []; }
           try { wishlists = (JSON.parse(safeGetItem(WISHLISTS_KEY) || '[]')).map(migrateWishlist); } catch (_) { wishlists = []; }
-          try { const r = safeGetItem(CATS_KEY); categories = r ? JSON.parse(r) : [...DEFAULT_CATS]; } catch (_) { categories = [...DEFAULT_CATS]; }
+          try { const r = safeGetItem(CATS_KEY); categories = r ? JSON.parse(r) : []; } catch (_) { categories = []; }
         }
         if (!Array.isArray(wishlists)) wishlists = [];
         if (!Array.isArray(wishes)) wishes = [];
-        if (!Array.isArray(categories)) categories = [...DEFAULT_CATS];
+        if (!Array.isArray(categories)) categories = [];
       };
       try {
         const loadPromise = loadAll();
