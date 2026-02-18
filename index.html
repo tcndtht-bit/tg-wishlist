@@ -1859,6 +1859,7 @@
     function getMyWishes() {
       return wishes.filter((w) => {
         const ids = w.wishlistIds || [];
+        if (ids.length === 0) return true;
         return ids.some((id) => { const wl = wishlists.find((x) => x.id === id); return wl && !wl.isFollowedPublic; });
       });
     }
@@ -2658,11 +2659,16 @@
       else wishes.push(payload);
 
       wishlistIds.forEach((wlId) => { const wl = wishlists.find((x) => x.id === wlId); if (wl) wl.updatedAt = Date.now(); });
-      await saveWishes();
-      await saveWishlists();
+      try {
+        await saveWishes();
+        await saveWishlists();
+      } catch (err) {
+        console.error('Ошибка сохранения:', err);
+        tg?.showAlert?.('Не удалось сохранить. Проверь интернет и попробуй снова.');
+        return;
+      }
       render();
       closeWishModal();
-      // Отключаем предупреждение после сохранения
       updateClosingConfirmation();
       tg?.HapticFeedback?.notificationOccurred?.('success');
     }));
