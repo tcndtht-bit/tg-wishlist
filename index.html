@@ -400,7 +400,7 @@
         <div class="form-row">
           <div class="form-group">
             <label>Стоимость</label>
-            <input type="number" id="wishPrice" min="1" max="9999999" placeholder="0">
+            <input type="number" id="wishPrice" min="0" max="9999999" step="0.01" placeholder="0">
             <div id="priceError" class="error-msg" style="display:none;"></div>
           </div>
           <div class="form-group">
@@ -1493,8 +1493,9 @@
 
     function validatePrice(v) {
       if (!v) return null;
-      const n = parseInt(v, 10);
-      if (isNaN(n) || n < 1 || n > 9999999) return 'Число от 1 до 9999999';
+      const n = parseFloat(String(v).replace(',', '.'));
+      if (isNaN(n) || n < 0 || n > 9999999) return 'Число от 0 до 9999999';
+      if (/\.\d{3,}/.test(String(v))) return 'До сотых долей (макс. 2 знака после запятой)';
       return null;
     }
 
@@ -1512,9 +1513,9 @@
 
     function formatPrice(price, currency) {
       if (!price) return '';
-      const n = parseInt(price, 10);
+      const n = parseFloat(String(price).replace(',', '.'));
       if (isNaN(n)) return price;
-      const fmt = new Intl.NumberFormat('ru-RU').format(n);
+      const fmt = new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n);
       return currency ? `${fmt} ${currency}` : fmt;
     }
 
@@ -2643,7 +2644,7 @@
         id: id || 'w_' + Date.now(),
         name,
         image: pendingImageBase64 || (wishes.find((x) => x.id === id)?.image),
-        price: price ? String(parseInt(price, 10)) : undefined,
+        price: price ? (() => { const n = parseFloat(String(price).replace(',', '.')); return isNaN(n) ? undefined : String(Math.round(n * 100) / 100); })() : undefined,
         currency: currency || undefined,
         size: size || undefined,
         link: link || undefined,
