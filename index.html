@@ -2130,6 +2130,7 @@
 
     function openWishModalFromLink(extractedData, link) {
       window._wishFromLink = true;
+      window._wishFromImage = false;
       tg?.HapticFeedback?.impactOccurred?.('light');
       const imgSrc = extractedData?.imageBase64 || extractedData?.image || null;
       pendingImageBase64 = extractedData?.imageBase64 || extractedData?.image || null;
@@ -2223,6 +2224,7 @@
 
     function openWishModalFromText(extractedData) {
       window._wishFromLink = true;
+      window._wishFromImage = false;
       tg?.HapticFeedback?.impactOccurred?.('light');
       pendingImageBase64 = PLACEHOLDER_IMAGE;
       const form = document.getElementById('wishForm');
@@ -2310,6 +2312,7 @@
 
     function openWishModalFromImage(imageBase64, extractedData) {
       window._wishFromLink = false;
+      window._wishFromImage = true;
       tg?.HapticFeedback?.impactOccurred?.('light');
       const hasRealImage = imageBase64 && imageBase64 !== PLACEHOLDER_IMAGE;
       pendingImageBase64 = hasRealImage ? imageBase64 : null;
@@ -2320,7 +2323,7 @@
       if (hasRealImage) {
         imgPreview.src = imageBase64;
         imgPreview.style.display = 'block';
-        imgPreview.onerror = () => { imgPreview.style.display = 'none'; pendingImageBase64 = null; };
+        imgPreview.onerror = () => { imgPreview.style.display = 'none'; };
         document.getElementById('imgUploadText').textContent = 'Изменить фото';
       } else {
         imgPreview.style.display = 'none';
@@ -2411,6 +2414,7 @@
 
     function openWishModal(editId = null, defaultWlId = null) {
       window._wishFromLink = false;
+      window._wishFromImage = false;
       tg?.HapticFeedback?.impactOccurred?.('light');
       pendingImageBase64 = null;
       const form = document.getElementById('wishForm');
@@ -2496,7 +2500,7 @@
 
     function closeWishModal() {
       document.getElementById('wishModal').classList.remove('open');
-      // Отключаем предупреждение при закрытии модалки
+      window._wishFromImage = false;
       updateClosingConfirmation();
     }
 
@@ -2579,7 +2583,13 @@
         if (el) { el.style.display = 'none'; el.textContent = ''; }
       });
 
-      if (isNew && !pendingImageBase64 && !window._wishFromLink) {
+      const hasValidImage = pendingImageBase64 && pendingImageBase64 !== PLACEHOLDER_IMAGE;
+      if (isNew && window._wishFromImage && !hasValidImage) {
+        document.getElementById('imgError').textContent = 'Изображение обязательно для карточки по фото';
+        document.getElementById('imgError').style.display = 'block';
+        return;
+      }
+      if (isNew && !hasValidImage && !window._wishFromLink) {
         document.getElementById('imgError').textContent = 'Добавьте изображение';
         document.getElementById('imgError').style.display = 'block';
         return;
@@ -2609,10 +2619,13 @@
         return;
       }
 
+      const imageForSave = (pendingImageBase64 && pendingImageBase64 !== PLACEHOLDER_IMAGE)
+        ? pendingImageBase64
+        : (wishes.find((x) => x.id === id)?.image);
       const payload = {
         id: id || 'w_' + Date.now(),
         name,
-        image: pendingImageBase64 || (wishes.find((x) => x.id === id)?.image),
+        image: imageForSave,
         price: price ? (() => { const n = parseFloat(String(price).replace(',', '.')); return isNaN(n) ? undefined : String(Math.round(n * 100) / 100); })() : undefined,
         currency: currency || undefined,
         size: size || undefined,
