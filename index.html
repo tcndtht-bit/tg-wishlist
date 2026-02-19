@@ -2813,18 +2813,20 @@
       let reserveBtn = '';
       if (!reserved) reserveBtn = `<button class="btn btn-sm btn-reserve" data-card-id="${w.id}" style="background:#00FFFF;color:#000;width:100%;">${t('btn_reserve')}</button>`;
       else if (isReservedByMe) reserveBtn = `<button class="btn btn-sm btn-secondary btn-unreserve" data-card-id="${w.id}" style="width:100%;">${t('btn_unreserve')}</button>`;
+      // Name badge sits above the action button row (≈42px tall) when one is present
+      const nameBadgeBottom = reserveBtn ? '42px' : '0';
 
       return `
         <div class="card${reservedClass}" data-id="${w.id}" style="position:relative;border-radius:10px;overflow:hidden;">
           ${w.image
-            ? `<img style="width:100%;aspect-ratio:1;object-fit:cover;display:block;border-bottom:1.5px solid rgba(0,0,0,0.15);" src="${escapeHtml(w.image)}" alt="" loading="lazy" onerror="this.style.display='none'">`
+            ? `<img style="width:100%;aspect-ratio:1;object-fit:cover;display:block;" src="${escapeHtml(w.image)}" alt="" loading="lazy" onerror="this.style.display='none'">`
             : `<div style="width:100%;aspect-ratio:1;background:#eee;display:flex;align-items:center;justify-content:center;font-size:2.8rem;">🎁</div>`}
           ${priceStr ? `<div style="position:absolute;top:7px;right:7px;background:#FFFF00;border:1.5px solid #000;padding:2px 7px;font-size:0.68rem;font-weight:800;box-shadow:2px 2px 0 0 rgba(0,0,0,0.7);">${escapeHtml(priceStr)}</div>` : ''}
-          <div style="position:absolute;bottom:${reserved ? '44px' : '0'};left:0;right:0;background:rgba(0,0,0,0.65);padding:5px 8px;">
+          <div style="position:absolute;bottom:${nameBadgeBottom};left:0;right:0;background:rgba(0,0,0,0.65);padding:5px 8px;">
             <div style="color:#fff;font-size:0.68rem;font-weight:800;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(w.name)}</div>
           </div>
-          ${reserved ? `<div style="background:#fff;border-top:1.5px solid #000;padding:6px 8px;">${reserveBtn}</div>` : ''}
-          ${reserveBtn && !reserved ? `<div style="background:#fff;border-top:1.5px solid #000;padding:6px 8px;">${reserveBtn}</div>` : ''}
+          ${reserveBtn ? `<div style="position:absolute;bottom:0;left:0;right:0;background:#fff;border-top:1.5px solid #000;padding:6px 8px;">${reserveBtn}</div>` : ''}
+          ${reserved && !reserveBtn ? `<div style="position:absolute;top:7px;left:7px;background:#FF00FF;border:1.5px solid #000;padding:2px 6px;font-size:0.6rem;font-weight:700;color:#fff;">🔖 ${t('badge_reserved')}</div>` : ''}
         </div>`;
     }
 
