@@ -188,8 +188,6 @@
     #wishModal .modal .multiselect-option { color: #fff; border-color: rgba(255,255,255,0.1); }
     #wishModal .modal .multiselect-option:hover, #wishModal .modal .multiselect-option.selected { background: rgba(255,0,255,0.35); }
     #wishModal .modal #wishDeleteSection { border-color: rgba(255,255,255,0.2); }
-    /* Feed entity links */
-    .feed-link { cursor: pointer; text-decoration: underline; font-weight: 700; color: #000; }
     /* Forms */
     .form-group { margin-bottom: 14px; }
     .form-group label { display: block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px; color: #000; }
