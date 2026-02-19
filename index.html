@@ -137,6 +137,16 @@
     .page-header-title { font-size: 1.25rem; font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em; flex: 1; }
     .page-back-btn { background: #fff; border: var(--nb-border); box-shadow: var(--nb-shadow-sm); color: #000; padding: 8px 12px; border-radius: 8px; font-size: 0.8rem; cursor: pointer; font-weight: 700; transition: transform 0.1s, box-shadow 0.1s; font-family: inherit; white-space: nowrap; }
     .page-back-btn:active { transform: translate(2px,2px); box-shadow: none; }
+    /* Wishlist detail header — unified chip system */
+    .wl-chip { display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; border: 2px solid #000; border-radius: 100px; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; font-family: inherit; box-shadow: 2px 2px 0 0 #000; cursor: default; line-height: 1; }
+    .wl-chip-btn { cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; }
+    .wl-chip-btn:active { transform: translate(2px,2px); box-shadow: none; }
+    .wl-chip.back { background: #fff; color: #000; }
+    .wl-chip.privacy-private { background: #000; color: var(--nb-yellow); }
+    .wl-chip.privacy-public { background: var(--nb-magenta); color: #fff; }
+    .wl-chip.privacy-shared { background: var(--nb-cyan); color: #000; }
+    .wl-chip.action-share { background: var(--nb-yellow); color: #000; }
+    .wl-chip.action-invite { background: var(--nb-cyan); color: #000; }
     .page-header-title { color: #fff; }
     /* Tag cloud */
     .tag-cloud { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 0; justify-content: center; }
@@ -2232,21 +2242,22 @@
       Object.keys(byCat).forEach((c) => { if (!catOrder.includes(c)) catOrder.push(c); });
       const pr = wl.privacy;
       const prLabel = pr === 'private' ? 'Приватный' : (pr === 'public' ? 'Публичный' : (pr === 'shared' ? 'Совместный' : ''));
-      const shareBtn = pr === 'public' && isOwner(wl) ? `<button class="btn btn-sm btn-secondary" data-wl-share="${wl.id}">Поделиться</button>` : '';
-      const inviteBtn = pr === 'shared' && isOwner(wl) ? `<button class="btn btn-sm btn-secondary" data-wl-invite="${wl.id}">Пригласить</button>` : '';
+      const shareBtn = pr === 'public' && isOwner(wl) ? `<button class="wl-chip wl-chip-btn action-share" data-wl-share="${wl.id}">↗ Поделиться</button>` : '';
+      const inviteBtn = pr === 'shared' && isOwner(wl) ? `<button class="wl-chip wl-chip-btn action-invite" data-wl-invite="${wl.id}">+ Пригласить</button>` : '';
       const sec = { type: 'wishlist', wl, wishes: wlWishes };
 
       const filterSelStyle = 'padding:6px 10px;border:2px solid #000;border-radius:100px;box-shadow:2px 2px 0 0 #000;background:#fff;color:#000;font-size:0.7rem;font-weight:700;text-transform:uppercase;outline:none;font-family:inherit;cursor:pointer;min-width:0;flex:1;';
-      const prBadgeStyle = pr === 'private' ? 'background:#000;color:#FFFF00;' : (pr === 'public' ? 'background:#FF00FF;color:#fff;' : 'background:#00FFFF;color:#000;');
       content.innerHTML = `
         <div style="margin-bottom:16px;">
-          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-            <button class="page-back-btn" id="wlDetailBackBtn">← Назад</button>
-            ${wl.image ? `<img src="${escapeHtml(wl.image)}" alt="" style="width:40px;height:40px;border:2px solid #000;border-radius:8px;object-fit:cover;flex-shrink:0;">` : ''}
-            <span class="page-header-title" style="font-size:1rem;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(wl.name)}</span>
+          <!-- Row 1: image + title -->
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+            ${wl.image ? `<img src="${escapeHtml(wl.image)}" alt="" style="width:52px;height:52px;border:2px solid #000;border-radius:12px;object-fit:cover;flex-shrink:0;box-shadow:3px 3px 0 0 #000;">` : ''}
+            <span style="font-size:1.05rem;font-weight:900;text-transform:uppercase;letter-spacing:-0.02em;color:#fff;line-height:1.2;word-break:break-word;">${escapeHtml(wl.name)}</span>
           </div>
-          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-            ${prLabel ? `<span class="manage-card-badge ${pr}" style="${prBadgeStyle}">${escapeHtml(prLabel)}</span>` : ''}
+          <!-- Row 2: unified chips -->
+          <div style="display:flex;align-items:center;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px;">
+            <button class="wl-chip wl-chip-btn back" id="wlDetailBackBtn">← Назад</button>
+            ${prLabel ? `<span class="wl-chip privacy-${pr}">${escapeHtml(prLabel)}</span>` : ''}
             ${shareBtn}${inviteBtn}
           </div>
         </div>
