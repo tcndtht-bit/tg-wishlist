@@ -2013,11 +2013,11 @@
     function renderManageWishlists() {
       const content = document.getElementById('content');
       content.innerHTML = `
-        <div style="overflow-x:hidden;">
+        <div>
           <button class="btn" id="newSlayListBtn" style="width:100%;margin-bottom:16px;font-size:1rem;padding:14px;">
             ${t('btn_new_wishlist')}
           </button>
-          <div id="wlManageList" style="padding-right:6px;"></div>
+          <div id="wlManageList"></div>
         </div>
       `;
       document.getElementById('newSlayListBtn').addEventListener('click', () => navigateTo('createWishlist'));
@@ -2063,7 +2063,7 @@
                 <span class="manage-card-name">${escapeHtml(wl.name)}</span>
                 <div class="manage-card-actions">${editBtn}${removeOrLeave}</div>
               </div>
-              <div style="display:flex;align-items:center;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
                 <span class="wl-chip privacy-${prClass}">${prLabel}</span>
                 ${shareBtn}${inviteBtn}
               </div>
