@@ -273,13 +273,14 @@
     @keyframes spin { to { transform: rotate(360deg); } }
     /* Live feed — compact ticker style */
     .feed-container { padding: 4px 0 16px; }
-    .feed-item { display: flex; align-items: center; gap: 8px; padding: 3px 0; animation: feedIn 0.3s ease-out; }
-    .feed-item-ts { flex-shrink: 0; font-size: 0.68rem; font-weight: 700; color: rgba(255,255,255,0.35); letter-spacing: 0.03em; font-variant-numeric: tabular-nums; }
+    .feed-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; animation: feedIn 0.3s ease-out; }
+    .feed-item-ts { flex-shrink: 0; font-size: 0.78rem; font-weight: 700; color: rgba(255,255,255,0.4); letter-spacing: 0.03em; font-variant-numeric: tabular-nums; line-height: 1.5; }
     .feed-item-track { flex: 1; overflow: hidden; position: relative; }
-    .feed-item-inner { display: inline-block; white-space: nowrap; font-size: 0.82rem; font-weight: 600; color: rgba(255,255,255,0.88); line-height: 1.6; }
+    .feed-item-inner { display: inline-block; white-space: nowrap; font-size: 0.88rem; font-weight: 500; color: rgba(255,255,255,0.92); line-height: 1.5; }
+    .feed-item-inner b { font-size: inherit; font-weight: 700; }
     .feed-item-inner.is-scrolling { animation: feedTicker 9s ease-in-out infinite alternate; }
     @keyframes feedTicker { 0%, 15% { transform: translateX(0); } 85%, 100% { transform: translateX(var(--scroll-px, 0px)); } }
-    .feed-link { color: #FF00FF; font-weight: 700; cursor: pointer; text-decoration: none; }
+    .feed-link { font-size: inherit; color: #FF80FF; font-weight: 700; cursor: pointer; text-decoration: none; }
     .feed-link:hover { text-decoration: underline; }
     @keyframes feedIn { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
     .feed-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 2px 0; }
@@ -1443,71 +1444,71 @@
     async function getFeedEvents() {
       const now = Date.now();
       const events = [];
+      const ru = appLang === 'ru';
       const myWishes = getMyWishes();
       const myWishIds = new Set(myWishes.map((w) => w.id));
-      const ru = appLang === 'ru';
 
-      // Helper: build "wish [preposition] wl" string without a subject
-      function evWishInWl(w, wl) {
-        const inWord = ru ? 'в' : 'in';
-        return wl ? `${fwishLink(w)} ${inWord} ${fwlLink(wl)} ✨` : `${fwishLink(w)} ✨`;
-      }
-      function evWishFromWl(w, wl) {
-        const fromWord = ru ? 'из' : 'from';
-        return wl ? `${fwishLink(w)} ${fromWord} ${fwlLink(wl)} 😳` : `${fwishLink(w)} 😳`;
-      }
-      function evUserReservedPublic(userName, wl) {
-        const verb = ru ? 'забукал кое-что в' : 'claimed smth in';
-        return wl ? `<b>${escapeHtml(userName)}</b> ${verb} ${fwlLink(wl)} 🤩❤️` : `<b>${escapeHtml(userName)}</b> ${ru ? 'забукал кое-что' : 'claimed smth'} 🤩❤️`;
-      }
-      function evUserReservedVisible(userName, w, wl) {
-        const verb = ru ? 'забукал' : 'claimed';
-        const fromWord = ru ? 'из' : 'from';
-        return wl
-          ? `<b>${escapeHtml(userName)}</b> ${verb} ${fwishLink(w)} ${fromWord} ${fwlLink(wl)} 🤩❤️`
-          : `<b>${escapeHtml(userName)}</b> ${verb} ${fwishLink(w)} 🤩❤️`;
+      // Cache for user display names
+      const _uc = {};
+      async function resolveUser(userId) {
+        if (!userId) return ru ? 'Кто-то' : 'Someone';
+        if (_uc[userId]) return _uc[userId];
+        try {
+          const { data } = await sb.from('users').select('first_name,username').eq('id', userId).single();
+          _uc[userId] = data?.username ? '@' + data.username : (data?.first_name || (ru ? 'Кто-то' : 'Someone'));
+        } catch (_) { _uc[userId] = ru ? 'Кто-то' : 'Someone'; }
+        return _uc[userId];
       }
 
-      // Recently added wishes — no subject, just wish [in wl]
-      const sortedWishes = [...myWishes].sort((a, b) => {
-        const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
-        return tb - ta;
-      });
-      for (const w of sortedWishes) {
-        const wlId = (w.wishlistIds || [])[0];
-        const wl = wishlists.find((x) => x.id === wlId);
-        const ts = w.created_at ? new Date(w.created_at).getTime() : 0;
-        events.push({ ts, time: fmtTime(ts), html: evWishInWl(w, wl) });
-      }
-
-      // Reservation events from Supabase
+      // ── Events 5 & 6: I added a wish ──────────────────────────
+      // Use Supabase for accurate created_at; fall back to local data
+      let addedWishRows = [];
       if (useSupabase && sb) {
         try {
-          // Others reserved MY wishes
+          const { data } = await sb.from('wishes').select('id,name,created_at').eq('user_id', currentUserId);
+          addedWishRows = data || [];
+        } catch (_) {}
+      }
+      if (addedWishRows.length === 0) {
+        addedWishRows = myWishes.map((w) => ({ id: w.id, name: w.name, created_at: w.created_at || null }));
+      }
+      for (const row of addedWishRows) {
+        const w = myWishes.find((x) => x.id === row.id);
+        if (!w) continue;
+        const wlId = (w.wishlistIds || [])[0];
+        const wl = wishlists.find((x) => x.id === wlId);
+        const ts = row.created_at ? new Date(row.created_at).getTime() : 0;
+        const html = wl
+          ? (ru ? `${fwishLink(w)} теперь в твоем листе ${fwlLink(wl)} ✨` : `${fwishLink(w)} now in your list ${fwlLink(wl)} ✨`)
+          : (ru ? `${fwishLink(w)} теперь в твоих желаниях ✨` : `${fwishLink(w)} now in your wishes ✨`);
+        events.push({ ts, time: fmtTime(ts), html });
+      }
+
+      if (useSupabase && sb) {
+        try {
+          // ── Event 1: Someone reserved my wish ─────────────────
           if (myWishIds.size > 0) {
             const { data: resRows } = await sb.from('reservations')
-              .select('wish_id, user_id, user_name, created_at')
+              .select('wish_id,user_name,created_at')
               .in('wish_id', [...myWishIds])
               .neq('user_id', currentUserId);
             for (const r of (resRows || [])) {
-              const w = wishes.find((x) => x.id === r.wish_id);
+              const w = myWishes.find((x) => x.id === r.wish_id);
               if (!w) continue;
               const wlId = (w.wishlistIds || []).find((id) => wishlists.some((wl) => wl.id === id));
               const wl = wishlists.find((x) => x.id === wlId);
-              const userName = r.user_name || (ru ? 'Кто-то' : 'Someone');
+              const name = escapeHtml(r.user_name || (ru ? 'Кто-то' : 'Someone'));
               const ts = r.created_at ? new Date(r.created_at).getTime() : now;
-              const html = (wl?.privacy === 'public')
-                ? evUserReservedPublic(userName, wl)
-                : evUserReservedVisible(userName, w, wl);
+              const html = wl
+                ? (ru ? `<b>${name}</b> забукал кое-что в твоем листе ${fwlLink(wl)} 🤩` : `<b>${name}</b> claimed smth in your list ${fwlLink(wl)} 🤩`)
+                : (ru ? `<b>${name}</b> забукал кое-что в твоих желаниях 🤩` : `<b>${name}</b> claimed smth from your wishes 🤩`);
               events.push({ ts, time: fmtTime(ts), html });
             }
           }
 
-          // MY reservations on others' lists
+          // ── Event 2: I reserved someone else's wish ───────────
           const { data: myResRows } = await sb.from('reservations')
-            .select('wish_id, created_at')
-            .eq('user_id', currentUserId);
+            .select('wish_id,created_at').eq('user_id', currentUserId);
           for (const r of (myResRows || [])) {
             if (myWishIds.has(r.wish_id)) continue;
             const w = wishes.find((x) => x.id === r.wish_id);
@@ -1515,9 +1516,63 @@
             const wlId = (w.wishlistIds || []).find((id) => wishlists.some((wl) => wl.id === id));
             const wl = wishlists.find((x) => x.id === wlId);
             const ts = r.created_at ? new Date(r.created_at).getTime() : now;
-            events.push({ ts, time: fmtTime(ts), html: evWishFromWl(w, wl) });
+            const ownerName = wl ? await resolveUser(wl.ownerId || wl.owner_id) : null;
+            let html;
+            if (wl && ownerName) {
+              html = ru
+                ? `Вы забронировали ${fwishLink(w)} в листе ${fwlLink(wl)} пользователя <b>${escapeHtml(ownerName)}</b> 😳`
+                : `You claimed ${fwishLink(w)} from <b>${escapeHtml(ownerName)}</b>'s list ${fwlLink(wl)} 😳`;
+            } else {
+              html = ru ? `Вы забронировали ${fwishLink(w)} 😳` : `You claimed ${fwishLink(w)} 😳`;
+            }
+            events.push({ ts, time: fmtTime(ts), html });
           }
-        } catch (_) {}
+
+          // ── Event 3: Collaborator added wish to shared list ───
+          const sharedWls = wishlists.filter((wl) => wl.privacy === 'shared' && !wl.isFollowedPublic && isOwner(wl));
+          if (sharedWls.length > 0) {
+            const { data: itemRows } = await sb.from('wishlist_items')
+              .select('wish_id,wishlist_id').in('wishlist_id', sharedWls.map((wl) => wl.id));
+            const othersWishIds = [...new Set((itemRows || []).map((r) => r.wish_id))].filter((id) => !myWishIds.has(id));
+            if (othersWishIds.length > 0) {
+              const { data: cwRows } = await sb.from('wishes')
+                .select('id,name,user_id,created_at').in('id', othersWishIds);
+              for (const r of (cwRows || [])) {
+                if (r.user_id === currentUserId) continue;
+                const ir = (itemRows || []).find((i) => i.wish_id === r.id);
+                const wl = ir ? wishlists.find((x) => x.id === ir.wishlist_id) : null;
+                if (!wl) continue;
+                const ts = r.created_at ? new Date(r.created_at).getTime() : 0;
+                const addedBy = await resolveUser(r.user_id);
+                const wLink = `<span class="feed-link" data-action="wish" data-id="${escapeHtml(r.id)}">${escapeHtml(r.name)}</span>`;
+                const html = ru
+                  ? `<b>${escapeHtml(addedBy)}</b> добавил ${wLink} в общий лист ${fwlLink(wl)} ✨`
+                  : `<b>${escapeHtml(addedBy)}</b> added ${wLink} to shared list ${fwlLink(wl)} ✨`;
+                events.push({ ts, time: fmtTime(ts), html });
+              }
+            }
+          }
+
+          // ── Event 4: My wishlist fully reserved ───────────────
+          const ownedWls = wishlists.filter((wl) => isOwner(wl) && !wl.isFollowedPublic);
+          for (const wl of ownedWls) {
+            const wlWishes = myWishes.filter((w) => (w.wishlistIds || []).includes(wl.id));
+            if (wlWishes.length === 0) continue;
+            const wlWishIds = wlWishes.map((w) => w.id);
+            const { data: rr } = await sb.from('reservations')
+              .select('wish_id,created_at').in('wish_id', wlWishIds);
+            const reservedIds = new Set((rr || []).map((r) => r.wish_id));
+            if (!wlWishIds.every((id) => reservedIds.has(id))) continue;
+            const latestTs = (rr || []).reduce((max, r) => {
+              const t = r.created_at ? new Date(r.created_at).getTime() : 0;
+              return t > max ? t : max;
+            }, now - 500);
+            const html = ru
+              ? `Ваш лист ${fwlLink(wl)} полностью забронирован 🔥`
+              : `Your list ${fwlLink(wl)} is fully claimed 🔥`;
+            events.push({ ts: latestTs, time: fmtTime(latestTs), html });
+          }
+        } catch (e) { console.warn('Feed error:', e); }
       }
 
       events.sort((a, b) => b.ts - a.ts);
