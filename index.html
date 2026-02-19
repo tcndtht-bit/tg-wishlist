@@ -155,6 +155,24 @@
     .modal { background: #F0F0F0; color: #000; border: 2px solid #000; border-radius: 20px 20px 0 0; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; padding: 24px; transform: translateY(100%); transition: transform 0.3s; box-shadow: 0 -6px 0 0 #000; }
     .modal-overlay.open .modal { transform: translateY(0); }
     .modal h2 { margin-bottom: 20px; font-size: 1.1rem; font-weight: 900; text-transform: uppercase; letter-spacing: -0.01em; }
+    /* SLAY wish modal dark gradient */
+    #wishModal .modal { background: linear-gradient(160deg, #1a0035 0%, #2a004a 45%, #0d001f 100%); border-color: #FF00FF; box-shadow: 0 -8px 0 0 #FF00FF, 0 0 40px rgba(255,0,255,0.15); color: #fff; }
+    #wishModal .modal h2 { color: #FF00FF; text-shadow: 0 0 20px rgba(255,0,255,0.4); }
+    #wishModal .modal .form-group label { color: rgba(255,255,255,0.7); }
+    #wishModal .modal .form-group input, #wishModal .modal .form-group select, #wishModal .modal .form-group textarea { background: rgba(255,255,255,0.09); border-color: rgba(255,255,255,0.2); color: #fff; }
+    #wishModal .modal .form-group input:focus, #wishModal .modal .form-group select:focus, #wishModal .modal .form-group textarea:focus { background: rgba(255,0,255,0.18); transform: translate(2px,2px); box-shadow: none; }
+    #wishModal .modal .form-group input::placeholder, #wishModal .modal .form-group textarea::placeholder { color: rgba(255,255,255,0.28); }
+    #wishModal .modal .img-upload { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.25); color: rgba(255,255,255,0.6); }
+    #wishModal .modal .img-upload:hover { background: rgba(255,0,255,0.2); }
+    #wishModal .modal small { color: rgba(255,255,255,0.4) !important; }
+    #wishModal .modal .multiselect-trigger { background: rgba(255,255,255,0.09); border-color: rgba(255,255,255,0.2); color: #fff; }
+    #wishModal .modal .multiselect-trigger.open, #wishModal .modal .multiselect-trigger:focus { background: rgba(255,0,255,0.25); }
+    #wishModal .modal .multiselect-panel { background: #200040; border-color: rgba(255,0,255,0.4); }
+    #wishModal .modal .multiselect-option { color: #fff; border-color: rgba(255,255,255,0.1); }
+    #wishModal .modal .multiselect-option:hover, #wishModal .modal .multiselect-option.selected { background: rgba(255,0,255,0.35); }
+    #wishModal .modal #wishDeleteSection { border-color: rgba(255,255,255,0.2); }
+    /* Feed entity links */
+    .feed-link { cursor: pointer; text-decoration: underline; font-weight: 700; color: #000; }
     /* Forms */
     .form-group { margin-bottom: 14px; }
     .form-group label { display: block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px; color: #000; }
@@ -1199,30 +1217,88 @@
       if (recent) { e.preventDefault(); navigateTo('wishlist', recent.dataset.wlId); }
     });
 
-    function getFeedEvents() {
-      const events = [];
-      const visibleWishlists = wishlists.filter((wl) => {
-        if (wl.privacy === 'private') return wl.ownerId === currentUserId;
-        if (wl.privacy === 'shared') return canEditWishlist(wl);
-        return true;
-      });
-      visibleWishlists.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-      for (const wl of visibleWishlists.slice(0, 5)) {
-        const wlWishes = wishes.filter((w) => (w.wishlistIds || []).includes(wl.id));
-        if (wlWishes.length > 0) {
-          const w = wlWishes[0];
-          events.push({ text: 'Вы добавили ' + escapeHtml(w.name) + ' в вишлист ' + escapeHtml(wl.name) + ' ✨', wlId: wl.id });
-        }
-      }
-      if (events.length === 0) {
-        events.push({ text: 'Добавьте первое желание по фото или ссылке 💅', wlId: null });
-      }
-      return events.slice(0, 8);
+    function wlLink(wl) {
+      if (!wl) return '';
+      return `<span class="feed-link" data-action="wl" data-id="${escapeHtml(wl.id)}">${escapeHtml(wl.name)}</span>`;
+    }
+    function wishLink(w) {
+      if (!w) return '';
+      return `<span class="feed-link" data-action="wish" data-id="${escapeHtml(w.id)}">${escapeHtml(w.name)}</span>`;
     }
 
-    function renderMain() {
+    async function getFeedEvents() {
+      const events = [];
+      const myWishes = getMyWishes();
+      const myWishIds = new Set(myWishes.map((w) => w.id));
+
+      // Recently added wishes (sorted by id as timestamp)
+      const sortedWishes = [...myWishes].sort((a, b) =>
+        (parseInt(String(b.id).replace(/\D/g, ''), 10) || 0) - (parseInt(String(a.id).replace(/\D/g, ''), 10) || 0)
+      );
+      for (const w of sortedWishes) {
+        const wlId = (w.wishlistIds || [])[0];
+        const wl = wishlists.find((x) => x.id === wlId);
+        events.push({
+          ts: parseInt(String(w.id).replace(/\D/g, ''), 10) || 0,
+          html: wl
+            ? `Вы добавили ${wishLink(w)} в вишлист ${wlLink(wl)} ✨`
+            : `Вы добавили ${wishLink(w)} в список желаний ✨`,
+        });
+      }
+
+      // Reservation events from Supabase
+      if (useSupabase && sb) {
+        try {
+          // Others reserved MY wishes
+          if (myWishIds.size > 0) {
+            const { data: resRows } = await sb.from('reservations')
+              .select('wish_id, user_id, user_name')
+              .in('wish_id', [...myWishIds])
+              .neq('user_id', currentUserId);
+            for (const r of (resRows || [])) {
+              const w = wishes.find((x) => x.id === r.wish_id);
+              if (!w) continue;
+              const wlId = (w.wishlistIds || []).find((id) => wishlists.some((wl) => wl.id === id));
+              const wl = wishlists.find((x) => x.id === wlId);
+              const userName = r.user_name || 'Кто-то';
+              events.push({
+                ts: Date.now() + 2000,
+                html: wl
+                  ? `<b>${escapeHtml(userName)}</b> забронировал ${wishLink(w)} в вашем вишлисте ${wlLink(wl)} 🤩❤️`
+                  : `<b>${escapeHtml(userName)}</b> забронировал ${wishLink(w)} 🤩❤️`,
+              });
+            }
+          }
+
+          // MY reservations on others' lists
+          const { data: myResRows } = await sb.from('reservations')
+            .select('wish_id')
+            .eq('user_id', currentUserId);
+          for (const r of (myResRows || [])) {
+            if (myWishIds.has(r.wish_id)) continue;
+            const w = wishes.find((x) => x.id === r.wish_id);
+            if (!w) continue;
+            const wlId = (w.wishlistIds || []).find((id) => wishlists.some((wl) => wl.id === id));
+            const wl = wishlists.find((x) => x.id === wlId);
+            events.push({
+              ts: Date.now() + 1000,
+              html: wl
+                ? `Вы забронировали ${wishLink(w)} в вишлисте ${wlLink(wl)} 😳`
+                : `Вы забронировали ${wishLink(w)} 😳`,
+            });
+          }
+        } catch (_) {}
+      }
+
+      events.sort((a, b) => b.ts - a.ts);
+      if (events.length === 0) {
+        events.push({ ts: 0, html: 'Добавьте первое желание по фото или ссылке 💅' });
+      }
+      return events.slice(0, 6);
+    }
+
+    async function renderMain() {
       const content = document.getElementById('content');
-      const feedEvents = getFeedEvents();
 
       content.innerHTML = `
         <div class="hero-section">
@@ -1232,23 +1308,26 @@
           </div>
         </div>
         <div class="feed-container" id="feedContainer">
-          ${isLoading
-            ? `<div class="skeleton skeleton-recent"></div>
-               <div class="skeleton skeleton-recent"></div>
-               <div class="skeleton skeleton-recent"></div>`
-            : feedEvents.map((ev, i) => `
-              <div class="feed-item${ev.wlId ? ' feed-item-link' : ''}" data-wl-id="${ev.wlId || ''}" style="animation-delay:${i * 0.05}s">
-                ${ev.text}
-              </div>
-            `).join('')}
+          <div class="skeleton skeleton-recent"></div>
+          <div class="skeleton skeleton-recent"></div>
+          <div class="skeleton skeleton-recent"></div>
         </div>
       `;
 
-      content.querySelectorAll('.feed-item-link').forEach((el) => {
-        el.style.cursor = 'pointer';
-        el.addEventListener('click', () => {
-          const wlId = el.dataset.wlId;
-          if (wlId) navigateTo('wishlist', wlId);
+      const feedEvents = await getFeedEvents();
+
+      const feedContainer = document.getElementById('feedContainer');
+      if (!feedContainer) return;
+
+      feedContainer.innerHTML = feedEvents.map((ev, i) => `
+        <div class="feed-item" style="animation-delay:${i * 0.05}s">${ev.html}</div>
+      `).join('');
+
+      feedContainer.querySelectorAll('.feed-link').forEach((el) => {
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (el.dataset.action === 'wl') navigateTo('wishlist', el.dataset.id);
+          else if (el.dataset.action === 'wish') openWishModal(el.dataset.id);
         });
       });
     }
@@ -1698,10 +1777,12 @@
     function renderManageWishlists() {
       const content = document.getElementById('content');
       content.innerHTML = `
-        <button class="btn" id="newSlayListBtn" style="width:100%;margin-bottom:16px;font-size:1rem;padding:14px;">
-          💅 Твой новый SLAY-LIST
-        </button>
-        <div id="wlManageList"></div>
+        <div style="overflow-x:hidden;">
+          <button class="btn" id="newSlayListBtn" style="width:100%;margin-bottom:16px;font-size:1rem;padding:14px;">
+            💅 Твой новый SLAY-LIST
+          </button>
+          <div id="wlManageList" style="padding-right:6px;"></div>
+        </div>
       `;
       document.getElementById('newSlayListBtn').addEventListener('click', () => navigateTo('createWishlist'));
       refreshWlManageList();
@@ -1946,17 +2027,19 @@
       // Только реальные теги из базы — дефолтные убраны, они были визуальными и не работали
 
       content.innerHTML = `
-        <button class="btn" id="newTagBtn" style="width:100%;margin-bottom:16px;">
-          + Новый тег
-        </button>
-        <div id="newTagForm" style="display:none;margin-bottom:16px;gap:8px;align-items:stretch;" class="tag-form-row">
-          <input type="text" id="newCatName" placeholder="Название тега" style="flex:1;padding:10px 14px;border:2px solid #000;border-radius:8px;box-shadow:2px 2px 0 0 #000;font-size:0.95rem;font-weight:600;outline:none;font-family:inherit;">
-          <button type="button" id="newTagCancel" class="btn btn-outline" style="padding:10px 12px;border-radius:8px;font-size:1.1rem;">✕</button>
-          <button type="button" class="btn btn-secondary" id="addCatBtn" style="padding:10px 16px;">✓</button>
-        </div>
-        <div id="tagCloud" class="tag-cloud"></div>
-        <div style="margin-top:20px;">
-          <button type="button" id="tagTrashBtn" class="btn btn-outline" style="width:100%;">🗑 Удалить теги</button>
+        <div style="overflow-x:hidden; padding-right:6px;">
+          <button class="btn" id="newTagBtn" style="width:100%;margin-bottom:16px;">
+            + Новый тег
+          </button>
+          <div id="newTagForm" style="display:none;margin-bottom:16px;gap:8px;align-items:stretch;" class="tag-form-row">
+            <input type="text" id="newCatName" placeholder="Название тега" style="flex:1;padding:10px 14px;border:2px solid #000;border-radius:8px;box-shadow:2px 2px 0 0 #000;font-size:0.95rem;font-weight:600;outline:none;font-family:inherit;">
+            <button type="button" id="newTagCancel" class="btn btn-outline" style="padding:10px 12px;border-radius:8px;font-size:1.1rem;">✕</button>
+            <button type="button" class="btn btn-secondary" id="addCatBtn" style="padding:10px 16px;">✓</button>
+          </div>
+          <div id="tagCloud" class="tag-cloud"></div>
+          <div style="margin-top:20px;">
+            <button type="button" id="tagTrashBtn" class="btn btn-outline" style="width:100%;">🗑 Удалить теги</button>
+          </div>
         </div>
       `;
 
@@ -2053,19 +2136,20 @@
       const content = document.getElementById('content');
       const myWishes = getMyWishes();
       const filterSelStyle = 'padding:6px 10px;border:2px solid #000;border-radius:100px;box-shadow:2px 2px 0 0 #000;background:#fff;color:#000;font-size:0.7rem;font-weight:700;text-transform:uppercase;outline:none;font-family:inherit;cursor:pointer;min-width:0;flex:1;';
+      const myWls = wishlists.filter((wl) => !wl.isFollowedPublic);
       content.innerHTML = `
-        <div style="display:flex;gap:6px;flex-wrap:nowrap;margin-bottom:12px;align-items:center;overflow-x:auto;">
+        <div style="display:flex;gap:6px;flex-wrap:nowrap;margin-bottom:12px;align-items:center;overflow-x:auto;-webkit-overflow-scrolling:touch;">
           <select id="wishesSortBy" style="${filterSelStyle}">
             <option value="date">По дате</option>
             <option value="alpha">По алфавиту</option>
           </select>
-          ${categories.length > 0 ? `<select id="wishesFilterTag" style="${filterSelStyle}">
-            <option value="">Все теги</option>
+          <select id="wishesFilterTag" style="${filterSelStyle}" ${categories.length === 0 ? 'disabled' : ''}>
+            <option value="">${categories.length === 0 ? 'Нет тегов' : 'Все теги'}</option>
             ${categories.map((c) => `<option value="${escapeHtml(c)}">#${escapeHtml(c)}</option>`).join('')}
-          </select>` : ''}
-          ${wishlists.filter((wl) => !wl.isFollowedPublic).length > 0 ? `<select id="wishesFilterWl" style="${filterSelStyle}">
+          </select>
+          ${myWls.length > 0 ? `<select id="wishesFilterWl" style="${filterSelStyle}">
             <option value="">Все листы</option>
-            ${wishlists.filter((wl) => !wl.isFollowedPublic).map((wl) => `<option value="${escapeHtml(wl.id)}">${escapeHtml(wl.name)}</option>`).join('')}
+            ${myWls.map((wl) => `<option value="${escapeHtml(wl.id)}">${escapeHtml(wl.name)}</option>`).join('')}
           </select>` : ''}
         </div>
         <button class="btn btn-secondary" id="addWishBtn" style="width:100%;margin-bottom:16px;">+ Добавить желание</button>
