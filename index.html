@@ -149,8 +149,6 @@
     .cat-chips-wrap { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
     .cat-chip { display: inline-flex; align-items: center; gap: 8px; border: 2px solid #000; background: #fff; box-shadow: var(--nb-shadow-sm); padding: 6px 12px; font-weight: 700; font-size: 0.78rem; text-transform: uppercase; cursor: pointer; border-radius: 100px; }
     .cat-chip-remove { color: var(--nb-red); font-size: 1rem; background: none; border: none; cursor: pointer; padding: 0; font-weight: 700; }
-    /* Trash zone */
-    .tag-chip { cursor: pointer; user-select: none; transition: transform 0.1s, box-shadow 0.1s; }
     /* Modals */
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: flex-end; justify-content: center; z-index: 1000; opacity: 0; visibility: hidden; transition: 0.3s; }
     .modal-overlay.open { opacity: 1; visibility: visible; }
@@ -2000,46 +1998,38 @@
 
       const trashBtn = document.getElementById('tagTrashBtn');
 
-      const enterDeleteMode = () => {
-        deleteMode = true;
-        cloud.classList.add('delete-mode');
-        trashBtn.style.background = '#FF0000';
-        trashBtn.style.color = '#fff';
-        trashBtn.textContent = '🗑 Подтвердить удаление';
-        cloud.querySelectorAll('.tag-chip.user-tag').forEach((chip) => {
-          chip.style.animation = 'tagShake 0.3s ease-in-out infinite alternate';
-        });
-        tg?.HapticFeedback?.impactOccurred?.('medium');
-      };
-
-      const exitDeleteMode = () => {
-        deleteMode = false;
-        cloud.classList.remove('delete-mode');
-        trashBtn.style.background = '';
-        trashBtn.style.color = '';
-        trashBtn.textContent = '🗑 Удалить теги';
-        cloud.querySelectorAll('.tag-chip').forEach((chip) => {
-          chip.classList.remove('selected');
-          chip.style.animation = '';
-        });
-      };
-
-      cloud.querySelectorAll('.tag-chip.user-tag').forEach((chip) => {
-        chip.addEventListener('click', () => {
-          if (!deleteMode) return;
-          chip.classList.toggle('selected');
-          tg?.HapticFeedback?.selectionChanged?.();
-        });
+      cloud.addEventListener('click', (e) => {
+        const chip = e.target.closest('.tag-chip.user-tag');
+        if (!chip) return;
+        if (cloud.dataset.deleteMode !== '1') return;
+        chip.classList.toggle('selected');
+        tg?.HapticFeedback?.selectionChanged?.();
       });
 
       trashBtn.addEventListener('click', async () => {
-        if (!deleteMode) {
-          enterDeleteMode();
+        if (cloud.dataset.deleteMode !== '1') {
+          cloud.dataset.deleteMode = '1';
+          trashBtn.style.background = '#FF0000';
+          trashBtn.style.color = '#fff';
+          trashBtn.style.boxShadow = '4px 4px 0 0 #000';
+          trashBtn.textContent = '🗑 Нажми на теги, потом сюда';
+          cloud.querySelectorAll('.tag-chip.user-tag').forEach((c) => {
+            c.style.animation = 'tagShake 0.3s ease-in-out infinite alternate';
+          });
+          tg?.HapticFeedback?.impactOccurred?.('medium');
           return;
         }
         const selected = [...cloud.querySelectorAll('.tag-chip.user-tag.selected')].map((el) => el.dataset.cat);
         if (selected.length === 0) {
-          exitDeleteMode();
+          cloud.dataset.deleteMode = '';
+          trashBtn.style.background = '';
+          trashBtn.style.color = '';
+          trashBtn.style.boxShadow = '';
+          trashBtn.textContent = '🗑 Удалить теги';
+          cloud.querySelectorAll('.tag-chip').forEach((c) => {
+            c.classList.remove('selected');
+            c.style.animation = '';
+          });
           return;
         }
         categories = categories.filter((x) => !selected.includes(x));
