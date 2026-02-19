@@ -6,6 +6,7 @@
   <title>Вишлист</title>
   <link rel="icon" href="data:,">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs" type="module"></script>
   <script>
     function loadEruda(){try{localStorage.setItem('eruda','1');var e=document.createElement('script');e.src='https://cdn.jsdelivr.net/npm/eruda';e.onload=function(){eruda.init();};document.head.appendChild(e);}catch(x){}}
     if(/eruda=true/.test(location.href)||/#eruda/.test(location.hash)||localStorage.getItem('eruda'))loadEruda();
@@ -58,8 +59,7 @@
     .splash-screen { position: fixed; inset: 0; background: #0D0D1A; z-index: 9999; display: flex; align-items: center; justify-content: center; }
     .splash-screen.fade-out { animation: splashFade 0.5s ease-out forwards; }
     @keyframes splashFade { to { opacity: 0; pointer-events: none; } }
-    .splash-logo { width: 80%; max-width: 340px; animation: splashPulse 1.2s ease-in-out infinite; filter: drop-shadow(0 0 24px rgba(255,0,255,0.6)); }
-    @keyframes splashPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.07)} }
+    .splash-lottie { width: 180px; height: 180px; }
     /* CSS loader spinner */
     .css-loader { width: 56px; height: 56px; border: 5px solid rgba(0,0,0,0.12); border-top-color: #000; border-right-color: #FF00FF; border-radius: 50%; animation: cssSpinLoader 0.8s linear infinite; }
     @keyframes cssSpinLoader { to { transform: rotate(360deg); } }
@@ -262,7 +262,7 @@
 <body>
   <!-- Splash screen with Logo Animation -->
   <div class="splash-screen" id="splashScreen">
-    <img src="logo-main.png" alt="I Want That So Bad" class="splash-logo">
+    <dotlottie-player src="Loader.lottie" autoplay loop class="splash-lottie"></dotlottie-player>
   </div>
 
   <!-- Animated background blobs -->
