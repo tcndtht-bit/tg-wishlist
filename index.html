@@ -64,7 +64,7 @@
     .css-loader { width: 56px; height: 56px; border: 5px solid rgba(0,0,0,0.12); border-top-color: #000; border-right-color: #FF00FF; border-radius: 50%; animation: cssSpinLoader 0.8s linear infinite; }
     @keyframes cssSpinLoader { to { transform: rotate(360deg); } }
     /* Layout */
-    .app-shell { width: 100%; min-height: 100vh; display: flex; flex-direction: column; padding-bottom: 80px; position: relative; z-index: 1; }
+    .app-shell { width: 100%; min-height: 100vh; display: flex; flex-direction: column; padding-bottom: 110px; position: relative; z-index: 1; }
     .container { width: 100%; padding: 16px; flex: 1; box-sizing: border-box; }
     #content { animation: contentIn 0.25s ease-out; }
     @keyframes contentIn { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: translateX(0); } }
@@ -72,17 +72,42 @@
     .app-header { display: block; padding: 0; margin: 0; line-height: 0; }
     .app-logo { width: 100%; display: block; }
     /* Action buttons — bottom right above tab bar */
-    .action-buttons { position: fixed; bottom: calc(max(8px, env(safe-area-inset-bottom)) + 72px + 12px); right: 12px; z-index: 50; display: flex; flex-direction: column; gap: 10px; }
+    .action-buttons { position: fixed; bottom: calc(env(safe-area-inset-bottom) + 96px + 12px); right: 12px; z-index: 50; display: flex; flex-direction: column; gap: 10px; }
     .action-btn { width: 52px; height: 52px; border-radius: 50%; border: 2px solid #000; font-size: 1.25rem; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: var(--nb-shadow); transition: transform 0.1s, box-shadow 0.1s; }
     .action-btn:active { transform: translate(4px,4px); box-shadow: none; }
     .action-btn.photo { background: var(--nb-yellow); color: #000; }
     .action-btn.link { background: var(--nb-magenta); color: #fff; }
-    /* Tabbar */
-    .tab-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: #000; border-top: 4px solid var(--nb-magenta); z-index: 100; display: flex; justify-content: space-around; padding: 8px 8px max(8px, env(safe-area-inset-bottom)); }
-    .tab-item { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 12px; color: rgba(255,255,255,0.55); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; cursor: pointer; transition: all 0.2s; border: none; background: none; border-radius: 8px; }
+    /* Tabbar — Neon Pill style */
+    .tab-bar {
+      position: fixed; bottom: 0; left: 0; width: 100%;
+      background: #000;
+      border-top: 4px solid var(--nb-magenta);
+      border-bottom: 4px solid var(--nb-magenta);
+      z-index: 100;
+      display: flex; justify-content: space-around; align-items: center;
+      padding: 10px 6px;
+      padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    }
+    .tab-item {
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      padding: 8px 16px;
+      color: rgba(255,255,255,0.4);
+      font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
+      cursor: pointer; border: none; background: none; border-radius: 100px;
+      font-family: inherit;
+      transition: transform 0.12s, box-shadow 0.12s, background 0.12s, color 0.12s;
+      flex: 1;
+    }
     .tab-item:active { transform: scale(0.9); }
-    .tab-item.active { color: var(--nb-yellow); transform: scale(1.08); }
-    .tab-item svg { width: 24px; height: 24px; }
+    .tab-item.active {
+      background: var(--nb-yellow);
+      color: #000;
+      border: 2px solid #000;
+      box-shadow: 3px 3px 0 0 #000;
+      transform: translateY(-2px);
+    }
+    .tab-item svg { width: 24px; height: 24px; transition: width 0.12s, height 0.12s; }
+    .tab-item.active svg { width: 22px; height: 22px; }
     /* Buttons */
     .btn { background: var(--nb-yellow); color: #000; border: var(--nb-border); padding: 10px 18px; border-radius: var(--nb-radius); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; box-shadow: var(--nb-shadow); display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-family: inherit; }
     .btn:hover { transform: translate(1px,1px); box-shadow: var(--nb-shadow-sm); }
