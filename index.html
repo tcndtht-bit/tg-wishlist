@@ -1436,8 +1436,30 @@
       const events = [];
       const myWishes = getMyWishes();
       const myWishIds = new Set(myWishes.map((w) => w.id));
+      const ru = appLang === 'ru';
 
-      // Recently added wishes — sort by real created_at from Supabase
+      // Helper: build "wish [preposition] wl" string without a subject
+      function evWishInWl(w, wl) {
+        const inWord = ru ? 'в' : 'in';
+        return wl ? `${fwishLink(w)} ${inWord} ${fwlLink(wl)} ✨` : `${fwishLink(w)} ✨`;
+      }
+      function evWishFromWl(w, wl) {
+        const fromWord = ru ? 'из' : 'from';
+        return wl ? `${fwishLink(w)} ${fromWord} ${fwlLink(wl)} 😳` : `${fwishLink(w)} 😳`;
+      }
+      function evUserReservedPublic(userName, wl) {
+        const verb = ru ? 'забукал кое-что в' : 'claimed smth in';
+        return wl ? `<b>${escapeHtml(userName)}</b> ${verb} ${fwlLink(wl)} 🤩❤️` : `<b>${escapeHtml(userName)}</b> ${ru ? 'забукал кое-что' : 'claimed smth'} 🤩❤️`;
+      }
+      function evUserReservedVisible(userName, w, wl) {
+        const verb = ru ? 'забукал' : 'claimed';
+        const fromWord = ru ? 'из' : 'from';
+        return wl
+          ? `<b>${escapeHtml(userName)}</b> ${verb} ${fwishLink(w)} ${fromWord} ${fwlLink(wl)} 🤩❤️`
+          : `<b>${escapeHtml(userName)}</b> ${verb} ${fwishLink(w)} 🤩❤️`;
+      }
+
+      // Recently added wishes — no subject, just wish [in wl]
       const sortedWishes = [...myWishes].sort((a, b) => {
         const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
         const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
@@ -1447,19 +1469,13 @@
         const wlId = (w.wishlistIds || [])[0];
         const wl = wishlists.find((x) => x.id === wlId);
         const ts = w.created_at ? new Date(w.created_at).getTime() : 0;
-        events.push({
-          ts,
-          time: fmtTime(ts),
-          html: wl
-            ? t('feed_added_to_wl').replace('{wish}', fwishLink(w)).replace('{wl}', fwlLink(wl))
-            : t('feed_added_to_list').replace('{wish}', fwishLink(w)).replace('{wl}', ''),
-        });
+        events.push({ ts, time: fmtTime(ts), html: evWishInWl(w, wl) });
       }
 
       // Reservation events from Supabase
       if (useSupabase && sb) {
         try {
-          // Others reserved MY wishes — include created_at
+          // Others reserved MY wishes
           if (myWishIds.size > 0) {
             const { data: resRows } = await sb.from('reservations')
               .select('wish_id, user_id, user_name, created_at')
@@ -1470,22 +1486,16 @@
               if (!w) continue;
               const wlId = (w.wishlistIds || []).find((id) => wishlists.some((wl) => wl.id === id));
               const wl = wishlists.find((x) => x.id === wlId);
-              const userName = r.user_name || 'Someone';
-              const isPublic = wl?.privacy === 'public';
-              const itemLabel = isPublic ? `<i>${appLang === 'ru' ? 'кое-что' : 'smth'}</i>` : fwishLink(w);
+              const userName = r.user_name || (ru ? 'Кто-то' : 'Someone');
               const ts = r.created_at ? new Date(r.created_at).getTime() : now;
-              const evKey = isPublic ? 'feed_reserved_private' : 'feed_reserved_public';
-              events.push({
-                ts,
-                time: fmtTime(ts),
-                html: wl
-                  ? t(evKey).replace('{user}', `<b>${escapeHtml(userName)}</b>`).replace('{wish}', itemLabel).replace('{wl}', fwlLink(wl))
-                  : `<b>${escapeHtml(userName)}</b> ${itemLabel}`,
-              });
+              const html = (wl?.privacy === 'public')
+                ? evUserReservedPublic(userName, wl)
+                : evUserReservedVisible(userName, w, wl);
+              events.push({ ts, time: fmtTime(ts), html });
             }
           }
 
-          // MY reservations on others' lists — include created_at
+          // MY reservations on others' lists
           const { data: myResRows } = await sb.from('reservations')
             .select('wish_id, created_at')
             .eq('user_id', currentUserId);
@@ -1496,13 +1506,7 @@
             const wlId = (w.wishlistIds || []).find((id) => wishlists.some((wl) => wl.id === id));
             const wl = wishlists.find((x) => x.id === wlId);
             const ts = r.created_at ? new Date(r.created_at).getTime() : now;
-            events.push({
-              ts,
-              time: fmtTime(ts),
-              html: wl
-                ? t('feed_i_reserved').replace('{wish}', fwishLink(w)).replace('{wl}', fwlLink(wl))
-                : t('feed_i_reserved').replace('{wish}', fwishLink(w)).replace(' from {wl}', '').replace('из {wl}', ''),
-            });
+            events.push({ ts, time: fmtTime(ts), html: evWishFromWl(w, wl) });
           }
         } catch (_) {}
       }
@@ -2014,7 +2018,7 @@
       const content = document.getElementById('content');
       content.innerHTML = `
         <div>
-          <button class="btn" id="newSlayListBtn" style="width:100%;margin-bottom:16px;font-size:1rem;padding:14px;">
+          <button class="btn" id="newSlayListBtn" style="width:100%;margin-bottom:16px;">
             ${t('btn_new_wishlist')}
           </button>
           <div id="wlManageList"></div>
