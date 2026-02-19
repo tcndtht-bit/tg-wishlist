@@ -143,16 +143,11 @@
     .wish-grid .card { margin-bottom: 0; padding: 0; border: 1.5px solid rgba(0,0,0,0.12); box-shadow: none; overflow: hidden; }
     .wish-grid-card { border: 1.5px solid rgba(0,0,0,0.12) !important; box-shadow: none !important; }
     .wish-card-edit, .wish-card-del, .wish-card-move { font-size: 0.65rem !important; }
-    /* Manage cards (wishlists list) */
-    .manage-card { background: #fff; color: #000; border: var(--nb-border); border-radius: var(--nb-radius); box-shadow: var(--nb-shadow); padding: 12px; margin-bottom: 12px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; content-visibility: auto; contain-intrinsic-size: auto 76px; }
+    /* Manage cards (wishlists list) — vertical layout */
+    .manage-card { background: #fff; color: #000; border: var(--nb-border); border-radius: var(--nb-radius); box-shadow: var(--nb-shadow); padding: 14px 14px 22px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 0; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; content-visibility: auto; contain-intrinsic-size: auto 160px; }
     .manage-card:active { transform: translate(2px,2px); box-shadow: var(--nb-shadow-sm); }
-    .manage-card-img { width: 56px; height: 56px; object-fit: cover; border: 2px solid #000; border-radius: 8px; background: #eee; flex-shrink: 0; }
-    .manage-card-body { flex: 1; min-width: 0; }
-    .manage-card-name { font-weight: 900; font-size: 0.88rem; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -0.01em; }
-    .manage-card-badge { display: inline-block; font-size: 0.58rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 7px; border: 1px solid #000; margin-top: 4px; }
-    .manage-card-badge.private { background: #000; color: var(--nb-yellow); }
-    .manage-card-badge.public { background: var(--nb-magenta); color: #fff; }
-    .manage-card-badge.shared { background: var(--nb-cyan); color: #000; }
+    .manage-card-img { width: 72px; height: 72px; object-fit: cover; border: 2px solid #000; border-radius: 10px; background: #eee; display: block; }
+    .manage-card-name { font-weight: 900; font-size: 0.92rem; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: -0.01em; flex: 1; min-width: 0; }
     .manage-card-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
     .manage-icon-btn { width: 32px; height: 32px; border: 2px solid #000; background: #fff; color: #000; font-size: 0.85rem; cursor: pointer; display: flex; align-items: center; justify-content: center; border-radius: 6px; box-shadow: var(--nb-shadow-sm); transition: transform 0.1s, box-shadow 0.1s; }
     .manage-icon-btn:active { transform: translate(2px,2px); box-shadow: none; }
@@ -1875,35 +1870,39 @@
         const prClass = wl.privacy === 'private' ? 'private' : (wl.privacy === 'public' ? 'public' : 'shared');
         const prLabel = wl.privacy === 'private' ? 'Приватный' : (wl.privacy === 'public' ? 'Публичный' : 'Совместный');
         const shareBtn = wl.privacy === 'public' && isOwner(wl)
-          ? `<button class="btn btn-sm btn-secondary" data-wl-share="${escapeHtml(wl.id)}" style="padding:5px 10px;">Поделиться</button>`
+          ? `<button class="wl-chip wl-chip-btn action-share" data-wl-share="${escapeHtml(wl.id)}">↗ Поделиться</button>`
           : '';
         const inviteBtn = wl.privacy === 'shared' && isOwner(wl)
-          ? `<button class="btn btn-sm" data-wl-invite="${escapeHtml(wl.id)}" style="background:#00FFFF;padding:5px 10px;">+ Пригласить</button>`
+          ? `<button class="wl-chip wl-chip-btn action-invite" data-wl-invite="${escapeHtml(wl.id)}">+ Пригласить</button>`
           : '';
         const isCollab = wl.privacy === 'shared' && canEditWishlist(wl) && !isOwner(wl);
         const isFollowed = !!wl.isFollowedPublic;
-        // Кнопка выхода (для соавторов и подписанных), без удаления из списка
         const removeOrLeave = (isCollab || isFollowed)
           ? `<button class="manage-icon-btn danger wl-item-leave" data-wl-id="${escapeHtml(wl.id)}" data-followed="${isFollowed}" title="Покинуть" style="font-size:0.65rem;padding:4px;">Выйти</button>`
           : '';
         const editBtn = isFollowed ? '' : `<button class="manage-icon-btn wl-item-edit" data-wl-id="${escapeHtml(wl.id)}" title="Редактировать">⚙</button>`;
         const wlWishes = wishes.filter((w) => (w.wishlistIds || []).includes(wl.id));
+        const imgEl = wl.image
+          ? `<img class="manage-card-img" src="${escapeHtml(wl.image)}" alt="" onerror="this.style.background='#eee'">`
+          : `<div class="manage-card-img" style="display:flex;align-items:center;justify-content:center;font-size:2rem;">🎁</div>`;
         return `
           <div class="manage-card" data-wl-id="${escapeHtml(wl.id)}">
-            ${wl.image
-              ? `<img class="manage-card-img" src="${escapeHtml(wl.image)}" alt="" onerror="this.style.background='#eee'">`
-              : `<div class="manage-card-img" style="display:flex;align-items:center;justify-content:center;font-size:1.5rem;">🎁</div>`}
-            <div class="manage-card-body">
-              <div class="manage-card-name">${escapeHtml(wl.name)}</div>
-              <div style="display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap;">
-                <span class="manage-card-badge ${prClass}">${prLabel}</span>
-                <span style="font-size:0.7rem;color:#666;font-weight:600;">${wlWishes.length} желаний</span>
-              </div>
-              ${shareBtn || inviteBtn ? `<div style="margin-top:6px;display:flex;gap:6px;">${shareBtn}${inviteBtn}</div>` : ''}
+            <!-- Row 1: name + actions -->
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+              <span class="manage-card-name">${escapeHtml(wl.name)}</span>
+              <div class="manage-card-actions">${editBtn}${removeOrLeave}</div>
             </div>
-            <div class="manage-card-actions">
-              ${editBtn}
-              ${removeOrLeave}
+            <!-- Row 2: privacy chip + action chip -->
+            <div style="display:flex;align-items:center;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:12px;">
+              <span class="wl-chip privacy-${prClass}">${prLabel}</span>
+              ${shareBtn}${inviteBtn}
+            </div>
+            <!-- Row 3: centered image with count badge on border -->
+            <div style="display:flex;justify-content:center;">
+              <div style="position:relative;display:inline-block;">
+                ${imgEl}
+                <span style="position:absolute;bottom:-11px;left:50%;transform:translateX(-50%);background:#000;color:var(--nb-yellow);border:2px solid #000;font-size:0.75rem;font-weight:900;padding:2px 10px;border-radius:100px;box-shadow:2px 2px 0 0 #000;white-space:nowrap;line-height:1.5;font-family:inherit;">${wlWishes.length}</span>
+              </div>
             </div>
           </div>`;
       }).join('');
