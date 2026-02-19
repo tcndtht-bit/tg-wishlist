@@ -1943,8 +1943,7 @@
 
     function renderManageCategories() {
       const content = document.getElementById('content');
-      const defaultTags = ['дорого', 'дешево', 'мечта', 'отпуск', 'семья', 'косметика', 'одежда', 'подарок', 'дом', 'гаджет'];
-      const allTags = [...new Set([...categories, ...defaultTags])];
+      // Только реальные теги из базы — дефолтные убраны, они были визуальными и не работали
 
       content.innerHTML = `
         <button class="btn" id="newTagBtn" style="width:100%;margin-bottom:16px;">
@@ -1991,10 +1990,13 @@
       });
 
       const cloud = document.getElementById('tagCloud');
-      cloud.innerHTML = allTags.map((c) => {
-        const isUser = categories.includes(c);
-        return `<span class="tag-chip ${isUser ? 'user-tag' : ''}" data-cat="${escapeHtml(c)}">${escapeHtml(c)}</span>`;
-      }).join('');
+      if (categories.length === 0) {
+        cloud.innerHTML = '<p style="color:rgba(255,255,255,0.4);font-size:0.8rem;font-weight:600;text-transform:uppercase;text-align:center;padding:20px 0;">Тегов пока нет — добавь первый!</p>';
+      } else {
+        cloud.innerHTML = categories.map((c) =>
+          `<span class="tag-chip user-tag" data-cat="${escapeHtml(c)}">${escapeHtml(c)}</span>`
+        ).join('');
+      }
 
       const trashBtn = document.getElementById('tagTrashBtn');
 
