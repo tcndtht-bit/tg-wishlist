@@ -2616,24 +2616,19 @@
       wlWishes.forEach((w) => { const c = w.category || t('wish_category_none'); if (!byCat[c]) byCat[c] = []; byCat[c].push(w); });
       const catOrder = Object.keys(byCat);
       const content = document.getElementById('content');
-      const d = { wishlist: wl, wishes: wlWishes, reservedCards, ownerName: '' };
       content.innerHTML = `
-        <button class="btn back-btn" data-nav-back>← ${t('btn_back')}</button>
-        <div class="wl-section">
-          <div class="wl-section-header">
-            ${wl.image ? `<img class="wl-section-img" src="${escapeHtml(wl.image)}" alt="">` : ''}
-            <span class="wl-section-title">${escapeHtml(wl.name || 'Вишлист')}</span>
+        <div style="margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+            ${wl.image ? `<img src="${escapeHtml(wl.image)}" alt="" style="width:52px;height:52px;border:2px solid #000;border-radius:12px;object-fit:cover;flex-shrink:0;box-shadow:3px 3px 0 0 #000;">` : ''}
+            <span style="font-size:1.05rem;font-weight:900;text-transform:uppercase;letter-spacing:-0.02em;color:#fff;line-height:1.2;word-break:break-word;">${escapeHtml(wl.name || 'Wishlist')}</span>
           </div>
-          <div class="wl-section-body view-readonly">
-            ${catOrder.map((catName) => {
-              const catItems = byCat[catName] || [];
-              return `
-                <div class="categories-section">
-                  <div class="category-title"><span class="count">${catItems.length}</span> ${escapeHtml(catName)}</div>
-                  <div class="wishlist">${catItems.map((w) => renderCard(w, null, { reserved: reservedCards, items: d })).join('')}</div>
-                </div>`;
-            }).join('')}
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <button class="wl-chip wl-chip-btn back" data-nav-back>← ${t('btn_back')}</button>
+            <span class="wl-chip privacy-public">${t('pr_public')}</span>
           </div>
+        </div>
+        <div class="wish-grid" id="followedCardsGrid">
+          ${wlWishes.length === 0 ? `<div class="empty-state" style="grid-column:1/-1;"><p>${t('wishes_empty')}</p></div>` : wlWishes.map((w) => renderCard(w, null, { reserved: reservedCards })).join('')}
         </div>`;
       content.querySelector('[data-nav-back]').addEventListener('click', () => navigateTo('main'));
       content.querySelectorAll('.btn-reserve').forEach((b) => b.addEventListener('click', () => reserveCardInFollowed(wlId, b.dataset.cardId)));
@@ -2667,31 +2662,24 @@
       const wl = d.wishlist || {};
       const items = d.wishes || [];
       const reserved = d.reservedCards || {};
-      const byCat = {};
-      items.forEach((w) => {
-        const c = w.category || t('wish_category_none');
-        if (!byCat[c]) byCat[c] = [];
-        byCat[c].push(w);
-      });
-      const catOrder = Object.keys(byCat);
+      const ownerDisplay = d.ownerName ? escapeHtml(d.ownerName) : '';
+
       content.innerHTML = `
-        <button class="btn back-btn" id="publicViewHomeBtn" style="margin-bottom:16px;">🏠 ${t('nav_home')}</button>
-        <div class="wl-section">
-          <div class="wl-section-header">
-            ${wl.image ? `<img class="wl-section-img" src="${escapeHtml(wl.image)}" alt="">` : ''}
-            <span class="wl-section-title">${escapeHtml(wl.name || 'Вишлист')}</span>
+        <div style="margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
+            ${wl.image ? `<img src="${escapeHtml(wl.image)}" alt="" style="width:52px;height:52px;border:2px solid #000;border-radius:12px;object-fit:cover;flex-shrink:0;box-shadow:3px 3px 0 0 #000;">` : ''}
+            <span style="font-size:1.05rem;font-weight:900;text-transform:uppercase;letter-spacing:-0.02em;color:#fff;line-height:1.2;word-break:break-word;">${escapeHtml(wl.name || 'Wishlist')}</span>
           </div>
-          <div class="wl-section-body view-readonly">
-            ${catOrder.map((catName) => {
-              const catItems = byCat[catName] || [];
-              return `
-                <div class="categories-section">
-                  <div class="category-title"><span class="count">${catItems.length}</span> ${escapeHtml(catName)}</div>
-                  <div class="wishlist">${catItems.map((w) => renderCard(w, null, { reserved, items: d })).join('')}</div>
-                </div>`;
-            }).join('')}
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+            <button class="wl-chip wl-chip-btn" id="publicViewHomeBtn">🏠 ${t('nav_home')}</button>
+            <span class="wl-chip privacy-public">${t('pr_public')}</span>
+            ${ownerDisplay ? `<span class="wl-chip" style="background:rgba(255,255,255,0.1);color:#fff;border-color:rgba(255,255,255,0.2);">${ownerDisplay}</span>` : ''}
           </div>
+        </div>
+        <div class="wish-grid" id="publicCardsGrid">
+          ${items.length === 0 ? `<div class="empty-state" style="grid-column:1/-1;"><p>${t('wishes_empty')}</p></div>` : items.map((w) => renderCard(w, null, { reserved })).join('')}
         </div>`;
+
       content.querySelector('#publicViewHomeBtn')?.addEventListener('click', () => {
         sessionStorage.setItem('publicViewGoHome', '1');
         history.replaceState(null, '', window.location.pathname);
