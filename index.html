@@ -189,7 +189,7 @@
     #wishModal .modal { background: linear-gradient(160deg, #1a0035 0%, #2a004a 45%, #0d001f 100%); border-color: #FF00FF; box-shadow: 0 -8px 0 0 #FF00FF, 0 0 40px rgba(255,0,255,0.15); color: #fff; }
     #wishModal .modal h2 { color: #FF00FF; text-shadow: 0 0 20px rgba(255,0,255,0.4); }
     #wishModal .modal .form-group label { color: rgba(255,255,255,0.7); }
-    #wishModal .modal .form-group input, #wishModal .modal .form-group select, #wishModal .modal .form-group textarea { background: rgba(255,255,255,0.09); border-color: rgba(255,255,255,0.2); color: #fff; }
+    #wishModal .modal .form-group input, #wishModal .modal .form-group select, #wishModal .modal .form-group textarea { background: rgba(255,255,255,0.09); border-color: rgba(255,255,255,0.2); color: #fff; caret-color: #FF00FF; }
     #wishModal .modal .form-group input:focus, #wishModal .modal .form-group select:focus, #wishModal .modal .form-group textarea:focus { background: rgba(255,0,255,0.18); transform: translate(2px,2px); box-shadow: none; }
     #wishModal .modal .form-group input::placeholder, #wishModal .modal .form-group textarea::placeholder { color: rgba(255,255,255,0.28); }
     #wishModal .modal .img-upload { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.25); color: rgba(255,255,255,0.6); }
@@ -206,8 +206,10 @@
     /* Forms */
     .form-group { margin-bottom: 14px; }
     .form-group label { display: block; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 5px; color: #000; }
+    /* Global input reset — prevent white caret on white bg */
+    input, textarea, select { color: #000; background: #fff; caret-color: #000; }
     .form-group label .required { color: var(--nb-magenta); }
-    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px 12px; border: 2px solid #000; box-shadow: var(--nb-shadow-sm); background: #fff; color: #000; font-size: 0.95rem; font-weight: 600; border-radius: 6px; outline: none; font-family: inherit; transition: box-shadow 0.1s, transform 0.1s, background 0.1s; }
+    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 10px 12px; border: 2px solid #000; box-shadow: var(--nb-shadow-sm); background: #fff; color: #000; caret-color: #000; font-size: 0.95rem; font-weight: 600; border-radius: 6px; outline: none; font-family: inherit; transition: box-shadow 0.1s, transform 0.1s, background 0.1s; }
     .form-group input:focus, .form-group select:focus, .form-group textarea:focus { box-shadow: none; transform: translate(2px,2px); background: var(--nb-yellow); }
     .form-group textarea { min-height: 80px; resize: vertical; }
     .form-row { display: flex; gap: 12px; }
@@ -2107,7 +2109,7 @@
             + Новый тег
           </button>
           <div id="newTagForm" style="display:none;margin-bottom:16px;gap:8px;align-items:stretch;" class="tag-form-row">
-            <input type="text" id="newCatName" placeholder="Название тега" style="flex:1;padding:10px 14px;border:2px solid #000;border-radius:8px;box-shadow:2px 2px 0 0 #000;font-size:0.95rem;font-weight:600;outline:none;font-family:inherit;">
+            <input type="text" id="newCatName" placeholder="Название тега" style="flex:1;padding:10px 14px;border:2px solid #000;border-radius:8px;box-shadow:2px 2px 0 0 #000;font-size:0.95rem;font-weight:600;outline:none;font-family:inherit;background:#fff;color:#000;caret-color:#000;">
             <button type="button" id="newTagCancel" class="btn btn-outline" style="padding:10px 12px;border-radius:8px;font-size:1.1rem;">✕</button>
             <button type="button" class="btn btn-secondary" id="addCatBtn" style="padding:10px 16px;">✓</button>
           </div>
