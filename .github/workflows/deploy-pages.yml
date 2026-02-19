@@ -28,6 +28,10 @@ jobs:
         run: |
           mkdir -p _site
           cp index.html _site/
+          # Copy all static assets (images, lottie, etc.)
+          for ext in png jpg jpeg gif webp svg ico lottie; do
+            find . -maxdepth 1 -name "*.${ext}" -exec cp {} _site/ \;
+          done
           if [ -n "$SUPABASE_URL" ]; then sed -i "s|__SUPABASE_URL__|$SUPABASE_URL|g" _site/index.html; fi
           if [ -n "$SUPABASE_ANON_KEY" ]; then sed -i "s|__SUPABASE_ANON_KEY__|$SUPABASE_ANON_KEY|g" _site/index.html; fi
           if [ -n "$LINK_SCRAPER_URL" ]; then sed -i "s|__LINK_SCRAPER_URL__|$LINK_SCRAPER_URL|g" _site/index.html; fi
