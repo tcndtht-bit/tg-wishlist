@@ -2118,12 +2118,16 @@
       const filterSelStyle = 'padding:6px 10px;border:2px solid #000;border-radius:100px;box-shadow:2px 2px 0 0 #000;background:#fff;color:#000;font-size:0.7rem;font-weight:700;text-transform:uppercase;outline:none;font-family:inherit;cursor:pointer;min-width:0;flex:1;';
       const prBadgeStyle = pr === 'private' ? 'background:#000;color:#FFFF00;' : (pr === 'public' ? 'background:#FF00FF;color:#fff;' : 'background:#00FFFF;color:#000;');
       content.innerHTML = `
-        <div class="page-header">
-          <button class="page-back-btn" id="wlDetailBackBtn">← Назад</button>
-          ${wl.image ? `<img src="${escapeHtml(wl.image)}" alt="" style="width:40px;height:40px;border:2px solid #000;border-radius:8px;object-fit:cover;flex-shrink:0;">` : ''}
-          <span class="page-header-title" style="font-size:1rem;">${escapeHtml(wl.name)}</span>
-          ${prLabel ? `<span class="manage-card-badge ${pr}" style="${prBadgeStyle}">${escapeHtml(prLabel)}</span>` : ''}
-          <span style="display:flex;gap:6px;">${shareBtn}${inviteBtn}</span>
+        <div style="margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <button class="page-back-btn" id="wlDetailBackBtn">← Назад</button>
+            ${wl.image ? `<img src="${escapeHtml(wl.image)}" alt="" style="width:40px;height:40px;border:2px solid #000;border-radius:8px;object-fit:cover;flex-shrink:0;">` : ''}
+            <span class="page-header-title" style="font-size:1rem;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(wl.name)}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            ${prLabel ? `<span class="manage-card-badge ${pr}" style="${prBadgeStyle}">${escapeHtml(prLabel)}</span>` : ''}
+            ${shareBtn}${inviteBtn}
+          </div>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:nowrap;margin-bottom:12px;align-items:center;overflow-x:auto;">
           <select id="wlSortBy" style="${filterSelStyle}">
