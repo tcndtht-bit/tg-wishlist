@@ -71,8 +71,8 @@
     /* App header — logo full-width */
     .app-header { display: block; padding: 0; margin: 0; line-height: 0; }
     .app-logo { width: 100%; display: block; }
-    /* Action buttons — floating circles */
-    .action-buttons { position: fixed; top: 58px; right: 12px; z-index: 50; display: flex; flex-direction: column; gap: 12px; }
+    /* Action buttons — bottom right above tab bar */
+    .action-buttons { position: fixed; bottom: calc(max(8px, env(safe-area-inset-bottom)) + 72px + 12px); right: 12px; z-index: 50; display: flex; flex-direction: column; gap: 10px; }
     .action-btn { width: 52px; height: 52px; border-radius: 50%; border: 2px solid #000; font-size: 1.25rem; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: var(--nb-shadow); transition: transform 0.1s, box-shadow 0.1s; }
     .action-btn:active { transform: translate(4px,4px); box-shadow: none; }
     .action-btn.photo { background: var(--nb-yellow); color: #000; }
@@ -236,10 +236,18 @@
     .analysis-spinner { width: 48px; height: 48px; border: 4px solid #333; border-top-color: var(--nb-yellow); border-radius: 50%; animation: spin 0.8s linear infinite; }
     .analysis-overlay span { color: #fff; font-size: 0.95rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    /* Live feed */
+    /* Live feed — compact ticker style */
     .feed-container { padding: 4px 0 16px; }
-    .feed-item { padding: 12px 14px; margin-bottom: 10px; background: rgba(255,255,255,0.92); border: 2px solid #000; border-radius: 12px; box-shadow: var(--nb-shadow-sm); font-size: 0.85rem; line-height: 1.55; animation: feedIn 0.35s ease-out; color: #000; }
-    @keyframes feedIn { from { opacity: 0; transform: translateY(-8px) scale(0.96); } to { opacity: 1; transform: none; } }
+    .feed-item { display: flex; align-items: center; gap: 8px; padding: 3px 0; animation: feedIn 0.3s ease-out; }
+    .feed-item-ts { flex-shrink: 0; font-size: 0.68rem; font-weight: 700; color: rgba(255,255,255,0.35); letter-spacing: 0.03em; font-variant-numeric: tabular-nums; }
+    .feed-item-track { flex: 1; overflow: hidden; position: relative; }
+    .feed-item-inner { display: inline-block; white-space: nowrap; font-size: 0.82rem; font-weight: 600; color: rgba(255,255,255,0.88); line-height: 1.6; }
+    .feed-item-inner.is-scrolling { animation: feedTicker 9s ease-in-out infinite alternate; }
+    @keyframes feedTicker { 0%, 15% { transform: translateX(0); } 85%, 100% { transform: translateX(var(--scroll-px, 0px)); } }
+    .feed-link { color: #FF00FF; font-weight: 700; cursor: pointer; text-decoration: none; }
+    .feed-link:hover { text-decoration: underline; }
+    @keyframes feedIn { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+    .feed-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 2px 0; }
     /* Section title */
     .section-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(255,255,255,0.5); margin-bottom: 12px; }
     /* Recent items */
@@ -1217,32 +1225,36 @@
       if (recent) { e.preventDefault(); navigateTo('wishlist', recent.dataset.wlId); }
     });
 
-    function wlLink(wl) {
+    function fwlLink(wl) {
       if (!wl) return '';
       return `<span class="feed-link" data-action="wl" data-id="${escapeHtml(wl.id)}">${escapeHtml(wl.name)}</span>`;
     }
-    function wishLink(w) {
+    function fwishLink(w) {
       if (!w) return '';
       return `<span class="feed-link" data-action="wish" data-id="${escapeHtml(w.id)}">${escapeHtml(w.name)}</span>`;
     }
+    function fmtTime(ts) {
+      const d = (ts > 946684800000) ? new Date(ts) : new Date();
+      return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
 
     async function getFeedEvents() {
+      const now = Date.now();
       const events = [];
       const myWishes = getMyWishes();
       const myWishIds = new Set(myWishes.map((w) => w.id));
 
-      // Recently added wishes (sorted by id as timestamp)
-      const sortedWishes = [...myWishes].sort((a, b) =>
-        (parseInt(String(b.id).replace(/\D/g, ''), 10) || 0) - (parseInt(String(a.id).replace(/\D/g, ''), 10) || 0)
-      );
+      // Recently added wishes (sorted newest first by position in array)
+      const sortedWishes = [...myWishes].reverse();
       for (const w of sortedWishes) {
         const wlId = (w.wishlistIds || [])[0];
         const wl = wishlists.find((x) => x.id === wlId);
         events.push({
-          ts: parseInt(String(w.id).replace(/\D/g, ''), 10) || 0,
+          ts: now - events.length * 1000,
+          time: fmtTime(now - events.length * 60000),
           html: wl
-            ? `Вы добавили ${wishLink(w)} в вишлист ${wlLink(wl)} ✨`
-            : `Вы добавили ${wishLink(w)} в список желаний ✨`,
+            ? `Вы добавили ${fwishLink(w)} в вишлист ${fwlLink(wl)} ✨`
+            : `Вы добавили ${fwishLink(w)} в список желаний ✨`,
         });
       }
 
@@ -1261,11 +1273,14 @@
               const wlId = (w.wishlistIds || []).find((id) => wishlists.some((wl) => wl.id === id));
               const wl = wishlists.find((x) => x.id === wlId);
               const userName = r.user_name || 'Кто-то';
+              // For public wishlists — hide wish name (privacy)
+              const itemLabel = wl?.privacy === 'public' ? `<i>кое-что</i>` : fwishLink(w);
               events.push({
-                ts: Date.now() + 2000,
+                ts: now + 2000,
+                time: fmtTime(now),
                 html: wl
-                  ? `<b>${escapeHtml(userName)}</b> забронировал ${wishLink(w)} в вашем вишлисте ${wlLink(wl)} 🤩❤️`
-                  : `<b>${escapeHtml(userName)}</b> забронировал ${wishLink(w)} 🤩❤️`,
+                  ? `<b>${escapeHtml(userName)}</b> забронировал ${itemLabel} в вашем листе ${fwlLink(wl)} 🤩❤️`
+                  : `<b>${escapeHtml(userName)}</b> забронировал ${itemLabel} 🤩❤️`,
               });
             }
           }
@@ -1281,10 +1296,11 @@
             const wlId = (w.wishlistIds || []).find((id) => wishlists.some((wl) => wl.id === id));
             const wl = wishlists.find((x) => x.id === wlId);
             events.push({
-              ts: Date.now() + 1000,
+              ts: now + 1000,
+              time: fmtTime(now),
               html: wl
-                ? `Вы забронировали ${wishLink(w)} в вишлисте ${wlLink(wl)} 😳`
-                : `Вы забронировали ${wishLink(w)} 😳`,
+                ? `Вы забронировали ${fwishLink(w)} в вишлисте ${fwlLink(wl)} 😳`
+                : `Вы забронировали ${fwishLink(w)} 😳`,
             });
           }
         } catch (_) {}
@@ -1292,7 +1308,7 @@
 
       events.sort((a, b) => b.ts - a.ts);
       if (events.length === 0) {
-        events.push({ ts: 0, html: 'Добавьте первое желание по фото или ссылке 💅' });
+        events.push({ ts: 0, time: fmtTime(now), html: 'Добавьте первое желание по фото или ссылке 💅' });
       }
       return events.slice(0, 6);
     }
@@ -1320,8 +1336,27 @@
       if (!feedContainer) return;
 
       feedContainer.innerHTML = feedEvents.map((ev, i) => `
-        <div class="feed-item" style="animation-delay:${i * 0.05}s">${ev.html}</div>
+        ${i > 0 ? '<div class="feed-divider"></div>' : ''}
+        <div class="feed-item" style="animation-delay:${i * 0.06}s">
+          <span class="feed-item-ts">${ev.time || ''}</span>
+          <div class="feed-item-track">
+            <span class="feed-item-inner">${ev.html}</span>
+          </div>
+        </div>
       `).join('');
+
+      // Activate marquee for overflowing items
+      feedContainer.querySelectorAll('.feed-item-track').forEach((track) => {
+        const inner = track.querySelector('.feed-item-inner');
+        if (!inner) return;
+        requestAnimationFrame(() => {
+          const overflow = inner.scrollWidth - track.clientWidth;
+          if (overflow > 10) {
+            inner.style.setProperty('--scroll-px', `-${overflow + 24}px`);
+            inner.classList.add('is-scrolling');
+          }
+        });
+      });
 
       feedContainer.querySelectorAll('.feed-link').forEach((el) => {
         el.addEventListener('click', (e) => {
