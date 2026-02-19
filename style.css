@@ -256,9 +256,9 @@
     /* Live feed — compact ticker style */
     .feed-container { padding: 4px 0 16px; }
     .feed-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; animation: feedIn 0.3s ease-out; }
-    .feed-item-ts { flex-shrink: 0; font-size: 0.72rem; font-weight: 700; color: rgba(255,255,255,0.4); letter-spacing: 0.03em; font-variant-numeric: tabular-nums; line-height: 1.5; }
+    .feed-item-ts { flex-shrink: 0; font-family: 'Inter', sans-serif; font-size: 0.72rem; font-weight: 700; color: rgba(255,255,255,0.4); letter-spacing: 0.03em; font-variant-numeric: tabular-nums; line-height: 1.5; }
     .feed-item-track { flex: 1; overflow: hidden; position: relative; }
-    .feed-item-inner { display: inline-block; white-space: nowrap; font-size: 0.78rem; font-weight: 500; color: rgba(255,255,255,0.92); line-height: 1.5; }
+    .feed-item-inner { display: inline-block; white-space: nowrap; font-family: 'Inter', sans-serif; font-size: 0.78rem; font-weight: 500; color: rgba(255,255,255,0.92); line-height: 1.5; }
     .feed-item-inner b { font-size: inherit; font-weight: 700; }
     .feed-item-inner.is-scrolling { animation: feedTicker 9s ease-in-out infinite alternate; }
     @keyframes feedTicker { 0%, 15% { transform: translateX(0); } 85%, 100% { transform: translateX(var(--scroll-px, 0px)); } }
