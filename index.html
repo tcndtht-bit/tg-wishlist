@@ -576,6 +576,21 @@
     </div>
   </div>
 
+  <!-- Read-only wish view (public) -->
+  <div class="modal-overlay" id="wishViewModal">
+    <div class="modal" style="padding:0;overflow:hidden;background:#F0F0F0;">
+      <div id="wishViewImg" style="width:100%;aspect-ratio:1;max-height:50vw;object-fit:cover;background:#eee;display:none;"></div>
+      <img id="wishViewImgEl" style="width:100%;aspect-ratio:1;max-height:220px;object-fit:cover;display:none;" alt="">
+      <div style="padding:20px 20px 16px;">
+        <h2 id="wishViewName" style="font-size:1.1rem;font-weight:900;text-transform:uppercase;margin-bottom:12px;color:#000;letter-spacing:-0.01em;word-break:break-word;"></h2>
+        <div id="wishViewMeta" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px;"></div>
+        <div id="wishViewLink" style="display:none;margin-bottom:10px;"></div>
+        <div id="wishViewComment" style="display:none;font-size:0.88rem;color:#333;border-left:3px solid #FF00FF;padding-left:10px;margin-bottom:14px;line-height:1.5;"></div>
+        <button type="button" class="btn btn-secondary" id="wishViewClose" style="width:100%;" data-i18n="btn_close">Понятно</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="inviteConsentModal">
     <div class="modal">
       <h2 data-i18n="invite_modal_title">Инвайт</h2>
@@ -2633,6 +2648,14 @@
       content.querySelector('[data-nav-back]').addEventListener('click', () => navigateTo('main'));
       content.querySelectorAll('.btn-reserve').forEach((b) => b.addEventListener('click', () => reserveCardInFollowed(wlId, b.dataset.cardId)));
       content.querySelectorAll('.btn-unreserve').forEach((b) => b.addEventListener('click', () => unreserveCardInFollowed(wlId, b.dataset.cardId)));
+      content.querySelectorAll('#followedCardsGrid .card').forEach((el) => {
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', (e) => {
+          if (e.target.closest('button')) return;
+          const w = wlWishes.find((x) => x.id === el.dataset.id);
+          openWishView(w);
+        });
+      });
     }
 
     async function reserveCardInFollowed(wlId, cardId) {
@@ -2687,6 +2710,14 @@
       });
       content.querySelectorAll('.btn-reserve').forEach((b) => b.addEventListener('click', () => reserveCard(b.dataset.cardId)));
       content.querySelectorAll('.btn-unreserve').forEach((b) => b.addEventListener('click', () => unreserveCard(b.dataset.cardId)));
+      content.querySelectorAll('#publicCardsGrid .card').forEach((el) => {
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', (e) => {
+          if (e.target.closest('button')) return;
+          const w = items.find((x) => x.id === el.dataset.id);
+          openWishView(w);
+        });
+      });
     }
 
     async function reserveCard(cardId) {
@@ -3681,6 +3712,52 @@
 
     document.getElementById('shareWelcomeOk').addEventListener('click', () => {
       document.getElementById('shareWelcomeModal').classList.remove('open');
+    });
+
+    // ── Read-only wish view ────────────────────────────────────────
+    function openWishView(w) {
+      if (!w) return;
+      const ru = appLang === 'ru';
+      const imgEl = document.getElementById('wishViewImgEl');
+      if (w.image) {
+        imgEl.src = w.image;
+        imgEl.style.display = 'block';
+        imgEl.onerror = () => { imgEl.style.display = 'none'; };
+      } else {
+        imgEl.style.display = 'none';
+      }
+      document.getElementById('wishViewName').textContent = w.name || '';
+      // Meta chips: price, currency, size, category
+      const meta = document.getElementById('wishViewMeta');
+      const chips = [];
+      if (w.price) {
+        const price = w.price + (w.currency ? ' ' + w.currency : '');
+        chips.push(`<span style="background:#FFFF00;border:1.5px solid #000;padding:3px 10px;font-size:0.8rem;font-weight:800;border-radius:100px;">${escapeHtml(price)}</span>`);
+      }
+      if (w.size) chips.push(`<span style="background:#fff;border:1.5px solid #000;padding:3px 10px;font-size:0.8rem;font-weight:700;border-radius:100px;">${escapeHtml(w.size)}</span>`);
+      if (w.category) chips.push(`<span style="background:#fff;border:1.5px solid #000;padding:3px 10px;font-size:0.8rem;font-weight:700;border-radius:100px;">#${escapeHtml(w.category)}</span>`);
+      meta.innerHTML = chips.join('');
+      meta.style.display = chips.length ? 'flex' : 'none';
+      // Link
+      const linkEl = document.getElementById('wishViewLink');
+      if (w.link) {
+        linkEl.innerHTML = `<a href="${escapeHtml(w.link)}" target="_blank" rel="noopener" style="color:#0000EE;font-size:0.82rem;word-break:break-all;text-decoration:underline;">${escapeHtml(w.link)}</a>`;
+        linkEl.style.display = 'block';
+      } else { linkEl.style.display = 'none'; }
+      // Comment
+      const commentEl = document.getElementById('wishViewComment');
+      if (w.comment) {
+        commentEl.textContent = w.comment;
+        commentEl.style.display = 'block';
+      } else { commentEl.style.display = 'none'; }
+      document.getElementById('wishViewModal').classList.add('open');
+      tg?.HapticFeedback?.impactOccurred?.('light');
+    }
+    document.getElementById('wishViewClose').addEventListener('click', () => {
+      document.getElementById('wishViewModal').classList.remove('open');
+    });
+    document.getElementById('wishViewModal').addEventListener('click', (e) => {
+      if (e.target.id === 'wishViewModal') e.target.classList.remove('open');
     });
 
     document.getElementById('inviteConsentAccept').addEventListener('click', async () => {
