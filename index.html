@@ -75,14 +75,16 @@
     .action-buttons { position: fixed; bottom: calc(env(safe-area-inset-bottom) + 96px + 12px); right: 12px; z-index: 50; display: flex; flex-direction: column; gap: 10px; }
     .action-btn { width: 52px; height: 52px; border-radius: 50%; border: 2px solid #000; font-size: 1.25rem; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: var(--nb-shadow); transition: transform 0.1s, box-shadow 0.1s; }
     .action-btn:active { transform: translate(4px,4px); box-shadow: none; }
+    .action-btn.add-wish { background: #fff; color: #000; }
     .action-btn.photo { background: var(--nb-yellow); color: #000; }
     .action-btn.link { background: var(--nb-magenta); color: #fff; }
-    /* Tabbar — Neon Pill style */
+    /* Tabbar */
     .tab-bar {
       position: fixed; bottom: 0; left: 0; width: 100%;
-      background: #000;
-      border-top: 4px solid var(--nb-magenta);
-      border-bottom: 4px solid var(--nb-magenta);
+      background: rgba(6, 0, 18, 0.94);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-top: 1.5px solid rgba(255,255,255,0.06);
       z-index: 100;
       display: flex; justify-content: space-around; align-items: center;
       padding: 10px 6px;
@@ -91,7 +93,7 @@
     .tab-item {
       display: flex; flex-direction: column; align-items: center; gap: 4px;
       padding: 8px 16px;
-      color: rgba(255,255,255,0.4);
+      color: rgba(255,255,255,0.35);
       font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
       cursor: pointer; border: none; background: none; border-radius: 100px;
       font-family: inherit;
@@ -102,12 +104,12 @@
     .tab-item.active {
       background: var(--nb-yellow);
       color: #000;
-      border: 2px solid #000;
-      box-shadow: 3px 3px 0 0 #000;
+      border: 2px solid rgba(0,0,0,0.9);
+      box-shadow: 3px 3px 0 0 rgba(0,0,0,0.7);
       transform: translateY(-2px);
     }
-    .tab-item svg { width: 24px; height: 24px; transition: width 0.12s, height 0.12s; }
-    .tab-item.active svg { width: 22px; height: 22px; }
+    .tab-item svg { width: 22px; height: 22px; transition: width 0.12s, height 0.12s; }
+    .tab-item.active svg { width: 20px; height: 20px; }
     /* Buttons */
     .btn { background: var(--nb-yellow); color: #000; border: var(--nb-border); padding: 10px 18px; border-radius: var(--nb-radius); font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; box-shadow: var(--nb-shadow); display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-family: inherit; }
     .btn:hover { transform: translate(1px,1px); box-shadow: var(--nb-shadow-sm); }
@@ -284,6 +286,11 @@
     .feed-link:hover { text-decoration: underline; }
     @keyframes feedIn { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
     .feed-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 2px 0; }
+    /* Quick FAQ */
+    .faq-block { background: rgba(255,255,255,0.05); border: 1.5px solid rgba(255,255,255,0.1); border-radius: 14px; padding: 16px 18px; margin-top: 22px; }
+    .faq-title { font-size: 0.7rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; color: var(--nb-yellow); margin-bottom: 10px; }
+    .faq-text { font-size: 0.86rem; color: rgba(255,255,255,0.7); line-height: 1.55; margin: 0 0 8px; }
+    .faq-text:last-child { margin-bottom: 0; }
     /* Section title */
     .section-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: rgba(255,255,255,0.5); margin-bottom: 12px; }
     /* Recent items */
@@ -344,6 +351,9 @@
     </header>
 
     <div class="action-buttons" id="actionButtons">
+      <button type="button" class="action-btn add-wish" id="addWishQuickBtn" data-i18n-title="btn_add_wish_title" title="Новая штука">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
       <button type="button" class="action-btn photo" id="addByPhotoBtn" data-i18n-title="btn_add_photo_title" title="По фоточке">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
       </button>
@@ -658,8 +668,11 @@
     const STRINGS = {
       ru: {
         nav_home:'Главная', nav_wishlists:'Мои листы', nav_tags:'Лейблы', nav_wishes:'Желания',
-        btn_add_photo_title:'По фоточке', btn_add_link_title:'По линку',
+        btn_add_wish_title:'Новая штука', btn_add_photo_title:'По фоточке', btn_add_link_title:'По линку',
         feed_title:'Прямо сейчас', feed_loading:'Секунду...', feed_empty:'Начни с фото или линка 💅',
+        faq_title:'Быстрый FAQ',
+        faq_text1:'Добавляй желания по картинке, ссылке или тексту — нейронка проанализирует и заполнит поля. Или вводи всё вручную. Кнопки справа или во вкладке Желания.',
+        faq_text2:'Для удобства создавай листы и лейблы во вкладках, шерь с друзьями, букай желания. Наслаждайся!',
         feed_added_to_wl:'Ты добавил {wish} в {wl} ✨',
         feed_added_to_list:'{wish} в твоём листе {wl} ✨',
         feed_reserved_private:'{user} забукал что-то в твоём {wl} 🤩❤️',
@@ -727,8 +740,11 @@
       },
       en: {
         nav_home:'Feed', nav_wishlists:'Wishlists', nav_tags:'Labels', nav_wishes:'Wishes',
-        btn_add_photo_title:'Upload pic', btn_add_link_title:'Drop a link',
+        btn_add_wish_title:'New want', btn_add_photo_title:'Upload pic', btn_add_link_title:'Drop a link',
         feed_title:'Right Now', feed_loading:'Hold on...', feed_empty:'Start with a pic or URL 💅',
+        faq_title:'Quick FAQ',
+        faq_text1:'Add a wish by photo, link or text — AI fills in the fields. Or do it manually. Buttons on the right or in the Wishes tab.',
+        faq_text2:'Create lists and labels in the tabs, share with friends, claim wishes. Enjoy!',
         feed_added_to_wl:'You added {wish} to {wl} ✨',
         feed_added_to_list:'{wish} now in your {wl} ✨',
         feed_reserved_private:'{user} reserved smth in {wl} 🤩❤️',
@@ -1603,6 +1619,11 @@
           <div class="skeleton skeleton-recent"></div>
           <div class="skeleton skeleton-recent"></div>
         </div>
+        <div class="faq-block">
+          <div class="faq-title">${t('faq_title')}</div>
+          <p class="faq-text">${t('faq_text1')}</p>
+          <p class="faq-text">${t('faq_text2')}</p>
+        </div>
       `;
 
       const feedEvents = await getFeedEvents();
@@ -1655,6 +1676,7 @@
     function bindActionButtons() {
       if (window._actionButtonsBound) return;
       window._actionButtonsBound = true;
+      document.getElementById('addWishQuickBtn')?.addEventListener('click', () => openWishModal());
       const addByPhotoBtn = document.getElementById('addByPhotoBtn');
       const addByPhotoInput = document.getElementById('addByPhotoInput');
       const addByLinkBtn = document.getElementById('addByLinkBtn');
@@ -2360,7 +2382,7 @@
             <button type="button" class="btn btn-secondary" id="addCatBtn" style="padding:10px 16px;">✓</button>
           </div>
           <div id="tagCloud" class="tag-cloud"></div>
-          <div style="margin-top:20px;">
+          <div style="margin-top:20px;overflow:hidden;">
             <button type="button" id="tagTrashBtn" class="btn btn-outline" style="width:100%;">${t('btn_delete_tags')}</button>
           </div>
         </div>
