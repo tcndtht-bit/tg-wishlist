@@ -1254,14 +1254,19 @@
       const myWishes = getMyWishes();
       const myWishIds = new Set(myWishes.map((w) => w.id));
 
-      // Recently added wishes (sorted newest first by position in array)
-      const sortedWishes = [...myWishes].reverse();
+      // Recently added wishes — sort by real created_at from Supabase
+      const sortedWishes = [...myWishes].sort((a, b) => {
+        const ta = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const tb = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return tb - ta;
+      });
       for (const w of sortedWishes) {
         const wlId = (w.wishlistIds || [])[0];
         const wl = wishlists.find((x) => x.id === wlId);
+        const ts = w.created_at ? new Date(w.created_at).getTime() : 0;
         events.push({
-          ts: now - events.length * 1000,
-          time: fmtTime(now - events.length * 60000),
+          ts,
+          time: fmtTime(ts),
           html: wl
             ? `Вы добавили ${fwishLink(w)} в вишлист ${fwlLink(wl)} ✨`
             : `Вы добавили ${fwishLink(w)} в список желаний ✨`,
@@ -1271,10 +1276,10 @@
       // Reservation events from Supabase
       if (useSupabase && sb) {
         try {
-          // Others reserved MY wishes
+          // Others reserved MY wishes — include created_at
           if (myWishIds.size > 0) {
             const { data: resRows } = await sb.from('reservations')
-              .select('wish_id, user_id, user_name')
+              .select('wish_id, user_id, user_name, created_at')
               .in('wish_id', [...myWishIds])
               .neq('user_id', currentUserId);
             for (const r of (resRows || [])) {
@@ -1283,11 +1288,11 @@
               const wlId = (w.wishlistIds || []).find((id) => wishlists.some((wl) => wl.id === id));
               const wl = wishlists.find((x) => x.id === wlId);
               const userName = r.user_name || 'Кто-то';
-              // For public wishlists — hide wish name (privacy)
               const itemLabel = wl?.privacy === 'public' ? `<i>кое-что</i>` : fwishLink(w);
+              const ts = r.created_at ? new Date(r.created_at).getTime() : now;
               events.push({
-                ts: now + 2000,
-                time: fmtTime(now),
+                ts,
+                time: fmtTime(ts),
                 html: wl
                   ? `<b>${escapeHtml(userName)}</b> забронировал ${itemLabel} в вашем листе ${fwlLink(wl)} 🤩❤️`
                   : `<b>${escapeHtml(userName)}</b> забронировал ${itemLabel} 🤩❤️`,
@@ -1295,9 +1300,9 @@
             }
           }
 
-          // MY reservations on others' lists
+          // MY reservations on others' lists — include created_at
           const { data: myResRows } = await sb.from('reservations')
-            .select('wish_id')
+            .select('wish_id, created_at')
             .eq('user_id', currentUserId);
           for (const r of (myResRows || [])) {
             if (myWishIds.has(r.wish_id)) continue;
@@ -1305,9 +1310,10 @@
             if (!w) continue;
             const wlId = (w.wishlistIds || []).find((id) => wishlists.some((wl) => wl.id === id));
             const wl = wishlists.find((x) => x.id === wlId);
+            const ts = r.created_at ? new Date(r.created_at).getTime() : now;
             events.push({
-              ts: now + 1000,
-              time: fmtTime(now),
+              ts,
+              time: fmtTime(ts),
               html: wl
                 ? `Вы забронировали ${fwishLink(w)} в вишлисте ${fwlLink(wl)} 😳`
                 : `Вы забронировали ${fwishLink(w)} 😳`,
