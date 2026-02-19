@@ -308,9 +308,13 @@
     .cat-add input { flex: 1; }
     .tag-form-row { display: flex; }
     /* Hero area (home page) */
-    .hero-section { padding: 4px 0 8px; text-align: center; }
+    .hero-section { padding: 4px 0 8px; }
     .hero-feed-title { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: rgba(255,255,255,0.5); margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
     .hero-feed-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--nb-magenta); box-shadow: 0 0 6px rgba(255,0,255,0.7); animation: dotPulse 2s ease-in-out infinite; }
+    .lang-toggle { display: inline-flex; align-items: center; gap: 0; border: 2px solid #000; border-radius: 100px; box-shadow: 2px 2px 0 0 #000; overflow: hidden; flex-shrink: 0; cursor: pointer; font-family: inherit; }
+    .lang-toggle-opt { padding: 4px 10px; font-size: 0.65rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.04em; background: transparent; border: none; cursor: pointer; color: rgba(255,255,255,0.35); transition: background 0.12s, color 0.12s; font-family: inherit; line-height: 1; }
+    .lang-toggle-opt.active { background: var(--nb-yellow); color: #000; }
+    .lang-toggle-opt:first-child { border-right: 1.5px solid #000; }
     @keyframes dotPulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
     @media (min-width: 480px) {
       .modal { border-radius: 20px; margin: auto 16px 16px; }
@@ -790,6 +794,8 @@
 
     let appLang = 'ru';
     function detectLang() {
+      const saved = (() => { try { return localStorage.getItem('app_lang'); } catch (_) { return null; } })();
+      if (saved === 'ru' || saved === 'en') { appLang = saved; return; }
       const lc = tg?.initDataUnsafe?.user?.language_code || navigator.language || 'ru';
       appLang = lc.toLowerCase().startsWith('ru') ? 'ru' : 'en';
     }
@@ -1523,9 +1529,15 @@
 
       content.innerHTML = `
         <div class="hero-section">
-          <div class="hero-feed-title">
-            <span class="hero-feed-dot"></span>
-            ${t('feed_title')}
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div class="hero-feed-title" style="margin-bottom:0;">
+              <span class="hero-feed-dot"></span>
+              ${t('feed_title')}
+            </div>
+            <div class="lang-toggle" id="langToggle">
+              <button type="button" class="lang-toggle-opt${appLang === 'ru' ? ' active' : ''}" data-lang="ru">RU</button>
+              <button type="button" class="lang-toggle-opt${appLang === 'en' ? ' active' : ''}" data-lang="en">EN</button>
+            </div>
           </div>
         </div>
         <div class="feed-container" id="feedContainer">
@@ -1569,6 +1581,16 @@
           if (el.dataset.action === 'wl') navigateTo('wishlist', el.dataset.id);
           else if (el.dataset.action === 'wish') openWishModal(el.dataset.id);
         });
+      });
+
+      document.getElementById('langToggle')?.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-lang]');
+        if (!btn || btn.dataset.lang === appLang) return;
+        appLang = btn.dataset.lang;
+        try { localStorage.setItem('app_lang', appLang); } catch (_) {}
+        tg?.HapticFeedback?.selectionChanged?.();
+        applyStaticI18n();
+        renderMain();
       });
     }
 
