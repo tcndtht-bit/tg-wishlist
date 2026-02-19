@@ -8,8 +8,8 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://unpkg.com/@dotlottie/player-component@2.7.12/dist/dotlottie-player.mjs" type="module"></script>
   <script>
-    function loadEruda(){try{localStorage.setItem('eruda','1');var e=document.createElement('script');e.src='https://cdn.jsdelivr.net/npm/eruda';e.onload=function(){eruda.init();};document.head.appendChild(e);}catch(x){}}
-    if(/eruda=true/.test(location.href)||/#eruda/.test(location.hash)||localStorage.getItem('eruda'))loadEruda();
+    function loadEruda(){try{var e=document.createElement('script');e.src='https://cdn.jsdelivr.net/npm/eruda';e.onload=function(){eruda.init();};document.head.appendChild(e);}catch(x){}}
+    if(/#eruda/.test(location.hash))loadEruda();
   </script>
   <style>
     /* ============================================================
@@ -961,6 +961,11 @@
     let wishes = [];
     let categories = [];
     let wishlists = [];
+    // ── Data cache: avoid re-fetching on every navigateTo() ──
+    const _cache = { ts: 0, ttl: 30000 };
+    function cacheValid() { return _cache.ts && (Date.now() - _cache.ts < _cache.ttl); }
+    function cacheTouch() { _cache.ts = Date.now(); }
+    function cacheInvalidate() { _cache.ts = 0; }
     let pendingImageBase64 = null;
     let pendingWlImageBase64 = null;
     let _imageFromPhotoForSave = null;
@@ -1371,27 +1376,32 @@
       }
       publicViewData = null;
       if (useSupabase && sb) {
-        const userRes = await ensureUser();
-        if (userRes.error) {
-          window._supabaseLoadError = userRes.error.message || JSON.stringify(userRes.error);
-          isLoading = false;
-          return;
+        if (cacheValid() && wishlists.length + wishes.length > 0) {
+          // Skip refetch — data is fresh
+        } else {
+          const userRes = await ensureUser();
+          if (userRes.error) {
+            window._supabaseLoadError = userRes.error.message || JSON.stringify(userRes.error);
+            isLoading = false;
+            return;
+          }
+          const wlRes = await loadWishlistsFromSupabase();
+          if (wlRes.error) {
+            window._supabaseLoadError = wlRes.error.message || JSON.stringify(wlRes.error);
+            isLoading = false;
+            return;
+          }
+          wishlists = Array.isArray(wlRes.data) ? wlRes.data : [];
+          const wlIdSet = new Set(wishlists.map((w) => w.id));
+          const [wishesRes, catsRes] = await Promise.all([
+            loadWishesFromSupabase(wlIdSet),
+            loadCategoriesFromSupabase()
+          ]);
+          wishes = Array.isArray(wishesRes) ? wishesRes : [];
+          const cats = Array.isArray(catsRes) ? catsRes : [];
+          categories = cats.length ? cats : [];
+          cacheTouch();
         }
-        const wlRes = await loadWishlistsFromSupabase();
-        if (wlRes.error) {
-          window._supabaseLoadError = wlRes.error.message || JSON.stringify(wlRes.error);
-          isLoading = false;
-          return;
-        }
-        wishlists = Array.isArray(wlRes.data) ? wlRes.data : [];
-        const wlIdSet = new Set(wishlists.map((w) => w.id));
-        const [wishesRes, catsRes] = await Promise.all([
-          loadWishesFromSupabase(wlIdSet),
-          loadCategoriesFromSupabase()
-        ]);
-        wishes = Array.isArray(wishesRes) ? wishesRes : [];
-        const cats = Array.isArray(catsRes) ? catsRes : [];
-        categories = cats.length ? cats : [];
       } else {
         wishes = loadWishesSync();
         wishes = Array.isArray(wishes) ? wishes : [];
@@ -1403,6 +1413,7 @@
     }
 
     async function saveWishes() {
+      cacheInvalidate();
       if (useSupabase) {
         for (const w of wishes) {
           const row = { id: w.id, name: w.name, image: w.image, price: w.price, currency: w.currency, size: w.size, link: w.link, comment: w.comment, category: w.category, user_id: currentUserId };
@@ -1419,6 +1430,7 @@
     }
 
     async function saveCategories() {
+      cacheInvalidate();
       if (useSupabase) {
         await sb.from('categories').delete().eq('user_id', currentUserId);
         for (const name of categories) await sb.from('categories').insert({ user_id: currentUserId, name });
@@ -1481,16 +1493,20 @@
       const myWishes = getMyWishes();
       const myWishIds = new Set(myWishes.map((w) => w.id));
 
-      // Cache for user display names
+      // Batch user resolution: collect IDs, fetch once
       const _uc = {};
-      async function resolveUser(userId) {
-        if (!userId) return ru ? 'Кто-то' : 'Someone';
-        if (_uc[userId]) return _uc[userId];
+      async function prefetchUsers(ids) {
+        const missing = [...new Set(ids)].filter((id) => id && !_uc[id]);
+        if (!missing.length || !useSupabase || !sb) return;
         try {
-          const { data } = await sb.from('users').select('first_name,username').eq('id', userId).single();
-          _uc[userId] = data?.username ? '@' + data.username : (data?.first_name || (ru ? 'Кто-то' : 'Someone'));
-        } catch (_) { _uc[userId] = ru ? 'Кто-то' : 'Someone'; }
-        return _uc[userId];
+          const { data } = await sb.from('users').select('id,first_name,username').in('id', missing);
+          (data || []).forEach((u) => { _uc[u.id] = u.username ? '@' + u.username : (u.first_name || (ru ? 'Кто-то' : 'Someone')); });
+        } catch (_) {}
+        missing.forEach((id) => { if (!_uc[id]) _uc[id] = ru ? 'Кто-то' : 'Someone'; });
+      }
+      function resolvedUser(userId) {
+        if (!userId) return ru ? 'Кто-то' : 'Someone';
+        return _uc[userId] || (ru ? 'Кто-то' : 'Someone');
       }
 
       // ── Events 5 & 6: I added a wish ──────────────────────────
@@ -1542,6 +1558,36 @@
           // ── Event 2: I reserved someone else's wish ───────────
           const { data: myResRows } = await sb.from('reservations')
             .select('wish_id,created_at').eq('user_id', currentUserId);
+
+          // ── Event 3: Collaborator added wish to shared list ───
+          const sharedWls = wishlists.filter((wl) => wl.privacy === 'shared' && !wl.isFollowedPublic && isOwner(wl));
+          let itemRows = [], cwRows = [];
+          if (sharedWls.length > 0) {
+            const { data } = await sb.from('wishlist_items')
+              .select('wish_id,wishlist_id').in('wishlist_id', sharedWls.map((wl) => wl.id));
+            itemRows = data || [];
+            const othersWishIds = [...new Set(itemRows.map((r) => r.wish_id))].filter((id) => !myWishIds.has(id));
+            if (othersWishIds.length > 0) {
+              const { data: cw } = await sb.from('wishes')
+                .select('id,name,user_id,created_at').in('id', othersWishIds);
+              cwRows = cw || [];
+            }
+          }
+
+          // Batch-prefetch all user IDs needed for events 2 & 3
+          const userIdsNeeded = [];
+          for (const r of (myResRows || [])) {
+            if (myWishIds.has(r.wish_id)) continue;
+            const w = wishes.find((x) => x.id === r.wish_id);
+            if (!w) continue;
+            const wlId = (w.wishlistIds || []).find((id) => wishlists.some((wl) => wl.id === id));
+            const wl = wishlists.find((x) => x.id === wlId);
+            if (wl) userIdsNeeded.push(wl.ownerId || wl.owner_id);
+          }
+          cwRows.filter((r) => r.user_id !== currentUserId).forEach((r) => userIdsNeeded.push(r.user_id));
+          await prefetchUsers(userIdsNeeded);
+
+          // Build event 2 entries
           for (const r of (myResRows || [])) {
             if (myWishIds.has(r.wish_id)) continue;
             const w = wishes.find((x) => x.id === r.wish_id);
@@ -1549,7 +1595,7 @@
             const wlId = (w.wishlistIds || []).find((id) => wishlists.some((wl) => wl.id === id));
             const wl = wishlists.find((x) => x.id === wlId);
             const ts = r.created_at ? new Date(r.created_at).getTime() : now;
-            const ownerName = wl ? await resolveUser(wl.ownerId || wl.owner_id) : null;
+            const ownerName = wl ? resolvedUser(wl.ownerId || wl.owner_id) : null;
             let html;
             if (wl && ownerName) {
               html = ru
@@ -1561,49 +1607,50 @@
             events.push({ ts, time: fmtTime(ts), html });
           }
 
-          // ── Event 3: Collaborator added wish to shared list ───
-          const sharedWls = wishlists.filter((wl) => wl.privacy === 'shared' && !wl.isFollowedPublic && isOwner(wl));
-          if (sharedWls.length > 0) {
-            const { data: itemRows } = await sb.from('wishlist_items')
-              .select('wish_id,wishlist_id').in('wishlist_id', sharedWls.map((wl) => wl.id));
-            const othersWishIds = [...new Set((itemRows || []).map((r) => r.wish_id))].filter((id) => !myWishIds.has(id));
-            if (othersWishIds.length > 0) {
-              const { data: cwRows } = await sb.from('wishes')
-                .select('id,name,user_id,created_at').in('id', othersWishIds);
-              for (const r of (cwRows || [])) {
-                if (r.user_id === currentUserId) continue;
-                const ir = (itemRows || []).find((i) => i.wish_id === r.id);
-                const wl = ir ? wishlists.find((x) => x.id === ir.wishlist_id) : null;
-                if (!wl) continue;
-                const ts = r.created_at ? new Date(r.created_at).getTime() : 0;
-                const addedBy = await resolveUser(r.user_id);
-                const wLink = `<span class="feed-link" data-action="wish" data-id="${escapeHtml(r.id)}">${escapeHtml(r.name)}</span>`;
-                const html = ru
-                  ? `<b>${escapeHtml(addedBy)}</b> добавил ${wLink} в общий лист ${fwlLink(wl)} ✨`
-                  : `<b>${escapeHtml(addedBy)}</b> added ${wLink} to shared list ${fwlLink(wl)} ✨`;
-                events.push({ ts, time: fmtTime(ts), html });
-              }
-            }
+          // Build event 3 entries
+          for (const r of cwRows) {
+            if (r.user_id === currentUserId) continue;
+            const ir = itemRows.find((i) => i.wish_id === r.id);
+            const wl = ir ? wishlists.find((x) => x.id === ir.wishlist_id) : null;
+            if (!wl) continue;
+            const ts = r.created_at ? new Date(r.created_at).getTime() : 0;
+            const addedBy = resolvedUser(r.user_id);
+            const wLink = `<span class="feed-link" data-action="wish" data-id="${escapeHtml(r.id)}">${escapeHtml(r.name)}</span>`;
+            const html = ru
+              ? `<b>${escapeHtml(addedBy)}</b> добавил ${wLink} в общий лист ${fwlLink(wl)} ✨`
+              : `<b>${escapeHtml(addedBy)}</b> added ${wLink} to shared list ${fwlLink(wl)} ✨`;
+            events.push({ ts, time: fmtTime(ts), html });
           }
 
-          // ── Event 4: My wishlist fully reserved ───────────────
+          // ── Event 4: My wishlist fully reserved (single batched query) ─
           const ownedWls = wishlists.filter((wl) => isOwner(wl) && !wl.isFollowedPublic);
+          const allOwnedWishIds = [];
+          const wlWishMap = {};
           for (const wl of ownedWls) {
-            const wlWishes = myWishes.filter((w) => (w.wishlistIds || []).includes(wl.id));
-            if (wlWishes.length === 0) continue;
-            const wlWishIds = wlWishes.map((w) => w.id);
-            const { data: rr } = await sb.from('reservations')
-              .select('wish_id,created_at').in('wish_id', wlWishIds);
-            const reservedIds = new Set((rr || []).map((r) => r.wish_id));
-            if (!wlWishIds.every((id) => reservedIds.has(id))) continue;
-            const latestTs = (rr || []).reduce((max, r) => {
-              const t = r.created_at ? new Date(r.created_at).getTime() : 0;
-              return t > max ? t : max;
-            }, now - 500);
-            const html = ru
-              ? `Ваш лист ${fwlLink(wl)} полностью забронирован 🔥`
-              : `Your list ${fwlLink(wl)} is fully claimed 🔥`;
-            events.push({ ts: latestTs, time: fmtTime(latestTs), html });
+            const wlW = myWishes.filter((w) => (w.wishlistIds || []).includes(wl.id));
+            if (wlW.length === 0) continue;
+            wlWishMap[wl.id] = wlW.map((w) => w.id);
+            wlW.forEach((w) => allOwnedWishIds.push(w.id));
+          }
+          if (allOwnedWishIds.length > 0) {
+            const uniqueIds = [...new Set(allOwnedWishIds)];
+            const { data: allRes } = await sb.from('reservations')
+              .select('wish_id,created_at').in('wish_id', uniqueIds);
+            const resMap = {};
+            (allRes || []).forEach((r) => { resMap[r.wish_id] = r; });
+            for (const wl of ownedWls) {
+              const ids = wlWishMap[wl.id];
+              if (!ids) continue;
+              if (!ids.every((id) => resMap[id])) continue;
+              const latestTs = ids.reduce((max, id) => {
+                const t = resMap[id]?.created_at ? new Date(resMap[id].created_at).getTime() : 0;
+                return t > max ? t : max;
+              }, now - 500);
+              const html = ru
+                ? `Ваш лист ${fwlLink(wl)} полностью забронирован 🔥`
+                : `Your list ${fwlLink(wl)} is fully claimed 🔥`;
+              events.push({ ts: latestTs, time: fmtTime(latestTs), html });
+            }
           }
         } catch (e) { console.warn('Feed error:', e); }
       }
@@ -1795,6 +1842,7 @@
     }
 
     async function saveWishlists() {
+      cacheInvalidate();
       if (useSupabase) {
         const ourIds = new Set(wishlists.map((w) => w.id));
         const { data: owned } = await sb.from('wishlists').select('id').eq('owner_id', currentUserId);
@@ -3808,7 +3856,7 @@
     });
     document.getElementById('inviteWlModal').addEventListener('click', (e) => { if (e.target.id === 'inviteWlModal') e.target.classList.remove('open'); });
 
-    (function(){var h=document.getElementById('mainHeader');if(h){var t=0,n=0;h.addEventListener('click',function(){var now=Date.now();if(now-t>1200)n=0;t=now;n++;if(n>=5){n=0;if(typeof loadEruda==='function')loadEruda();}});}})();
+    // Eruda: only via #eruda hash
 
     // Splash screen: hide after Logo Animation plays (≈2.5s) or on load complete
     (function initSplash() {
