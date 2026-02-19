@@ -17,7 +17,7 @@
        Style: 2px black borders | 4px hard shadows | bold uppercase
     ============================================================ */
     :root {
-      --nb-bg: #F0F0F0;
+      --nb-bg: #0D0D1A;
       --nb-card: #ffffff;
       --nb-black: #000000;
       --nb-yellow: #FFFF00;
@@ -29,34 +29,33 @@
       --nb-shadow-lg: 6px 6px 0px 0px rgba(0,0,0,1);
       --nb-border: 2px solid #000;
       --nb-radius: 12px;
-      /* Keep legacy vars for compat with inline styles in JS */
-      --bg-primary: #F0F0F0;
-      --bg-secondary: #ffffff;
+      /* Legacy compat */
+      --bg-primary: #0D0D1A;
+      --bg-secondary: #1a1a2e;
       --bg-card: #ffffff;
       --accent: #FF00FF;
-      --text-primary: #000000;
-      --text-secondary: #666666;
-      --border: rgba(0,0,0,0.15);
+      --text-primary: #ffffff;
+      --text-secondary: #cccccc;
+      --border: rgba(255,255,255,0.15);
       --shadow: var(--nb-shadow);
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
       background: var(--nb-bg);
-      color: var(--nb-black);
+      color: #ffffff;
       min-height: 100vh;
       padding: env(safe-area-inset-top) 0 0 0;
-      /* overflow-x only on children, not on html/body to avoid clipping fixed blobs */
     }
-    /* Animated background blobs */
+    /* Animated background blobs — on dark bg */
     .bg-blobs { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
-    .bg-blob-1 { position: absolute; top: -80px; left: -60px; width: 380px; height: 380px; border-radius: 50%; background: radial-gradient(circle, rgba(255,0,255,0.45) 0%, transparent 65%); animation: blobMove1 8s ease-in-out infinite; }
-    .bg-blob-2 { position: absolute; bottom: 5%; right: -60px; width: 340px; height: 340px; border-radius: 50%; background: radial-gradient(circle, rgba(255,255,0,0.5) 0%, transparent 65%); animation: blobMove2 10s ease-in-out infinite; }
-    .bg-blob-3 { position: absolute; top: 38%; left: 10%; width: 280px; height: 280px; border-radius: 50%; background: radial-gradient(circle, rgba(0,255,255,0.35) 0%, transparent 65%); animation: blobMove1 12s ease-in-out infinite reverse; }
+    .bg-blob-1 { position: absolute; top: -80px; left: -60px; width: 380px; height: 380px; border-radius: 50%; background: radial-gradient(circle, rgba(255,0,255,0.55) 0%, transparent 60%); animation: blobMove1 8s ease-in-out infinite; }
+    .bg-blob-2 { position: absolute; bottom: 5%; right: -60px; width: 340px; height: 340px; border-radius: 50%; background: radial-gradient(circle, rgba(80,0,220,0.6) 0%, transparent 60%); animation: blobMove2 10s ease-in-out infinite; }
+    .bg-blob-3 { position: absolute; top: 38%; left: 10%; width: 280px; height: 280px; border-radius: 50%; background: radial-gradient(circle, rgba(0,200,255,0.4) 0%, transparent 60%); animation: blobMove1 12s ease-in-out infinite reverse; }
     @keyframes blobMove1 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(30px,20px)} }
     @keyframes blobMove2 { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-20px,-30px)} }
     /* Splash screen */
-    .splash-screen { position: fixed; inset: 0; background: #F0F0F0; z-index: 9999; display: flex; align-items: center; justify-content: center; }
+    .splash-screen { position: fixed; inset: 0; background: #0D0D1A; z-index: 9999; display: flex; align-items: center; justify-content: center; }
     .splash-screen.fade-out { animation: splashFade 0.5s ease-out forwards; }
     @keyframes splashFade { to { opacity: 0; pointer-events: none; } }
     .splash-logo { width: 220px; animation: splashPulse 1.2s ease-in-out infinite; filter: drop-shadow(0 0 24px rgba(255,0,255,0.6)) drop-shadow(4px 4px 0 rgba(0,0,0,1)); }
@@ -136,8 +135,9 @@
     /* Page header */
     .page-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
     .page-header-title { font-size: 1.25rem; font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em; flex: 1; }
-    .page-back-btn { background: #fff; border: var(--nb-border); box-shadow: var(--nb-shadow-sm); color: #000; padding: 8px 12px; border-radius: 8px; font-size: 0.8rem; cursor: pointer; font-weight: 700; transition: transform 0.1s, box-shadow 0.1s; font-family: inherit; }
+    .page-back-btn { background: #fff; border: var(--nb-border); box-shadow: var(--nb-shadow-sm); color: #000; padding: 8px 12px; border-radius: 8px; font-size: 0.8rem; cursor: pointer; font-weight: 700; transition: transform 0.1s, box-shadow 0.1s; font-family: inherit; white-space: nowrap; }
     .page-back-btn:active { transform: translate(2px,2px); box-shadow: none; }
+    .page-header-title { color: #fff; }
     /* Tag cloud */
     .tag-cloud { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 0; justify-content: center; }
     .tag-chip { padding: 8px 16px; border: 2px solid #000; background: #fff; box-shadow: 3px 3px 0 0 #000; color: #000; font-weight: 700; font-size: 0.82rem; text-transform: uppercase; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s, background 0.1s; user-select: none; border-radius: 100px; }
@@ -148,8 +148,7 @@
     .cat-chip { display: inline-flex; align-items: center; gap: 8px; border: 2px solid #000; background: #fff; box-shadow: var(--nb-shadow-sm); padding: 6px 12px; font-weight: 700; font-size: 0.78rem; text-transform: uppercase; cursor: pointer; border-radius: 100px; }
     .cat-chip-remove { color: var(--nb-red); font-size: 1rem; background: none; border: none; cursor: pointer; padding: 0; font-weight: 700; }
     /* Trash zone */
-    .trash-zone { margin-top: 16px; padding: 20px; border: 4px dashed #bbb; border-radius: 12px; text-align: center; color: #aaa; font-weight: 700; text-transform: uppercase; min-height: 80px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; font-size: 0.85rem; }
-    .trash-zone.active { border-color: var(--nb-red); background: rgba(255,0,0,0.06); color: var(--nb-red); }
+    .tag-chip { cursor: pointer; user-select: none; transition: transform 0.1s, box-shadow 0.1s; }
     /* Modals */
     .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: flex-end; justify-content: center; z-index: 1000; opacity: 0; visibility: hidden; transition: 0.3s; }
     .modal-overlay.open { opacity: 1; visibility: visible; }
@@ -646,11 +645,8 @@
         tg.expand();
         // Не включаем предупреждение сразу - будем включать только при наличии несохраненных данных
         updateClosingConfirmation();
-        // Фиксируем цвет текста чёрным (чтобы Telegram тёмная тема не делала текст белым)
-        // Фон управляется через CSS и bg-blobs
-        document.body.style.color = '#000000';
-        try { tg.setHeaderColor('#000000'); } catch (_) {}
-        try { tg.setBackgroundColor('#F0F0F0'); } catch (_) {}
+        try { tg.setHeaderColor('#0D0D1A'); } catch (_) {}
+        try { tg.setBackgroundColor('#0D0D1A'); } catch (_) {}
       }
     } catch (_) {}
 
@@ -1650,13 +1646,17 @@
           const btn = document.getElementById('ewlDelete');
           if (btn.dataset.confirming) {
             btn.dataset.confirming = '';
-            btn.textContent = '🗑 Удалить вишлист';
+            btn.disabled = true;
+            btn.style.opacity = '0.7';
+            btn.innerHTML = '<span class="css-loader" style="width:18px;height:18px;border-width:3px;border-color:rgba(255,255,255,0.3);border-top-color:#fff;border-right-color:#fff;display:inline-block;vertical-align:middle;margin-right:8px;"></span>Удаляем…';
             await removeWlInManage(wlId);
             navigateTo('manageWishlists');
           } else {
             btn.dataset.confirming = '1';
-            btn.textContent = '⚠️ Нажми ещё раз для подтверждения';
-            setTimeout(() => { if (btn.dataset.confirming) { btn.dataset.confirming = ''; btn.textContent = '🗑 Удалить вишлист'; } }, 3000);
+            btn.style.background = '#cc0000';
+            btn.textContent = '⚠️ Нажми ещё раз — удалить навсегда';
+            tg?.HapticFeedback?.notificationOccurred?.('warning');
+            setTimeout(() => { if (btn.dataset.confirming) { btn.dataset.confirming = ''; btn.style.background = '#FF0000'; btn.textContent = '🗑 Удалить вишлист'; } }, 3000);
           }
         });
       }
@@ -1956,8 +1956,8 @@
           <button type="button" class="btn btn-secondary" id="addCatBtn" style="padding:10px 16px;">✓</button>
         </div>
         <div id="tagCloud" class="tag-cloud"></div>
-        <div id="trashZone" class="trash-zone" data-drop-zone>
-          <span>🗑 Перетащи тег сюда для удаления</span>
+        <div id="tagTrashBar" style="margin-top:16px;display:none;">
+          <button type="button" id="deleteTagsBtn" class="btn" style="width:100%;background:#FF0000;color:#fff;">🗑 Удалить выбранные теги</button>
         </div>
       `;
 
@@ -1994,28 +1994,27 @@
         return `<span class="tag-chip ${isUser ? 'user-tag' : ''}" data-cat="${escapeHtml(c)}" draggable="${isUser}">${escapeHtml(c)}</span>`;
       }).join('');
 
+      const trashBar = document.getElementById('tagTrashBar');
+      const updateTrash = () => {
+        const hasSelected = cloud.querySelectorAll('.tag-chip.user-tag.selected').length > 0;
+        trashBar.style.display = hasSelected ? 'block' : 'none';
+      };
+
       cloud.querySelectorAll('.tag-chip.user-tag').forEach((chip) => {
-        chip.setAttribute('draggable', 'true');
-        chip.addEventListener('dragstart', (e) => {
-          e.dataTransfer.setData('text/plain', chip.dataset.cat);
-          e.dataTransfer.effectAllowed = 'move';
-          chip.classList.add('dragging');
+        chip.addEventListener('click', () => {
+          chip.classList.toggle('selected');
+          tg?.HapticFeedback?.selectionChanged?.();
+          updateTrash();
         });
-        chip.addEventListener('dragend', () => chip.classList.remove('dragging'));
       });
 
-      const trash = document.getElementById('trashZone');
-      trash.addEventListener('dragover', (e) => { e.preventDefault(); trash.classList.add('active'); });
-      trash.addEventListener('dragleave', () => trash.classList.remove('active'));
-      trash.addEventListener('drop', async (e) => {
-        e.preventDefault();
-        trash.classList.remove('active');
-        const cat = e.dataTransfer.getData('text/plain');
-        if (!cat || !categories.includes(cat)) return;
-        categories = categories.filter((x) => x !== cat);
+      document.getElementById('deleteTagsBtn').addEventListener('click', async () => {
+        const selected = [...cloud.querySelectorAll('.tag-chip.user-tag.selected')].map((el) => el.dataset.cat);
+        if (!selected.length) return;
+        categories = categories.filter((x) => !selected.includes(x));
         await saveCategories();
-        renderManageCategories();
         tg?.HapticFeedback?.notificationOccurred?.('success');
+        renderManageCategories();
       });
     }
 
@@ -2030,9 +2029,9 @@
     function renderManageWishes() {
       const content = document.getElementById('content');
       const myWishes = getMyWishes();
-      const filterSelStyle = 'padding:8px 12px;border:2px solid #000;border-radius:100px;box-shadow:2px 2px 0 0 #000;background:#fff;font-size:0.75rem;font-weight:700;text-transform:uppercase;outline:none;font-family:inherit;cursor:pointer;';
+      const filterSelStyle = 'padding:6px 10px;border:2px solid #000;border-radius:100px;box-shadow:2px 2px 0 0 #000;background:#fff;color:#000;font-size:0.7rem;font-weight:700;text-transform:uppercase;outline:none;font-family:inherit;cursor:pointer;min-width:0;flex:1;';
       content.innerHTML = `
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">
+        <div style="display:flex;gap:6px;flex-wrap:nowrap;margin-bottom:12px;align-items:center;overflow-x:auto;">
           <select id="wishesSortBy" style="${filterSelStyle}">
             <option value="date">По дате</option>
             <option value="alpha">По алфавиту</option>
@@ -2095,17 +2094,17 @@
       const inviteBtn = pr === 'shared' && isOwner(wl) ? `<button class="btn btn-sm btn-secondary" data-wl-invite="${wl.id}">Пригласить</button>` : '';
       const sec = { type: 'wishlist', wl, wishes: wlWishes };
 
-      const filterSelStyle = 'padding:7px 12px;border:2px solid #000;border-radius:100px;box-shadow:2px 2px 0 0 #000;background:#fff;font-size:0.72rem;font-weight:700;text-transform:uppercase;outline:none;font-family:inherit;cursor:pointer;';
+      const filterSelStyle = 'padding:6px 10px;border:2px solid #000;border-radius:100px;box-shadow:2px 2px 0 0 #000;background:#fff;color:#000;font-size:0.7rem;font-weight:700;text-transform:uppercase;outline:none;font-family:inherit;cursor:pointer;min-width:0;flex:1;';
       const prBadgeStyle = pr === 'private' ? 'background:#000;color:#FFFF00;' : (pr === 'public' ? 'background:#FF00FF;color:#fff;' : 'background:#00FFFF;color:#000;');
       content.innerHTML = `
         <div class="page-header">
-          <button class="page-back-btn" data-nav-back data-nav-back="manageWishlists">← Назад</button>
+          <button class="page-back-btn" id="wlDetailBackBtn">← Назад</button>
           ${wl.image ? `<img src="${escapeHtml(wl.image)}" alt="" style="width:40px;height:40px;border:2px solid #000;border-radius:8px;object-fit:cover;flex-shrink:0;">` : ''}
           <span class="page-header-title" style="font-size:1rem;">${escapeHtml(wl.name)}</span>
           ${prLabel ? `<span class="manage-card-badge ${pr}" style="${prBadgeStyle}">${escapeHtml(prLabel)}</span>` : ''}
           <span style="display:flex;gap:6px;">${shareBtn}${inviteBtn}</span>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">
+        <div style="display:flex;gap:6px;flex-wrap:nowrap;margin-bottom:12px;align-items:center;overflow-x:auto;">
           <select id="wlSortBy" style="${filterSelStyle}">
             <option value="date">По дате</option>
             <option value="alpha">По алфавиту</option>
@@ -2118,7 +2117,7 @@
         <button class="btn" id="addWishToWl" style="width:100%;margin-bottom:16px;">+ Добавить желание</button>
         <div id="wlWishlistCards" class="wish-grid"></div>
       `;
-      content.querySelector('[data-nav-back]').addEventListener('click', () => navigateTo('manageWishlists'));
+      document.getElementById('wlDetailBackBtn').addEventListener('click', () => navigateTo('manageWishlists'));
 
       const applySortFilter = () => {
         const sortBy = document.getElementById('wlSortBy')?.value || 'date';
