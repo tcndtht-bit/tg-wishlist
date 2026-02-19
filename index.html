@@ -111,8 +111,9 @@
     .card-reserved-badge { font-size: 0.72rem; font-weight: 700; color: var(--nb-magenta); padding: 4px 10px; border-top: 1px solid #000; }
     .card-tape { width: 36px; height: 12px; background: rgba(255,230,0,0.8); border-radius: 2px; margin: -2px auto 6px; display: block; }
     /* Wish grid */
-    .wish-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding-bottom: 24px; }
-    .wish-grid .card { margin-bottom: 0; text-align: center; }
+    .wish-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding-bottom: 24px; }
+    .wish-grid .card { margin-bottom: 0; padding: 0; border: 1.5px solid rgba(0,0,0,0.12); box-shadow: none; overflow: hidden; }
+    .wish-grid-card { border: 1.5px solid rgba(0,0,0,0.12) !important; box-shadow: none !important; }
     .wish-card-edit, .wish-card-del, .wish-card-move { font-size: 0.65rem !important; }
     /* Manage cards (wishlists list) */
     .manage-card { background: #fff; border: var(--nb-border); border-radius: var(--nb-radius); box-shadow: var(--nb-shadow); padding: 12px; margin-bottom: 12px; display: flex; align-items: center; gap: 12px; cursor: pointer; transition: transform 0.1s, box-shadow 0.1s; content-visibility: auto; contain-intrinsic-size: auto 76px; }
@@ -259,7 +260,7 @@
   <!-- Splash screen with Logo Animation -->
   <div class="splash-screen" id="splashScreen">
     <dotlottie-player
-      src="Logo Animation.lottie"
+      src="Logo%20Animation.lottie"
       autoplay
       style="width:280px;height:280px;"
     ></dotlottie-player>
@@ -274,7 +275,7 @@
 
   <div class="app-shell">
     <header class="app-header" id="mainHeader">
-      <img src="Logo Main.png" alt="I Want That So Bad" class="app-logo">
+      <img src="Logo%20Main.png" alt="I Want That So Bad" class="app-logo">
     </header>
 
     <div class="action-buttons" id="actionButtons">
@@ -320,7 +321,7 @@
   </nav>
 
   <div class="analysis-overlay" id="analysisOverlay">
-    <dotlottie-player src="Loader.lottie" autoplay loop style="width:120px;height:120px;"></dotlottie-player>
+    <dotlottie-player src="Loader.lottie" autoplay loop style="width:120px;height:120px;display:block;"></dotlottie-player>
     <span id="analysisOverlayText">Анализируем изображение…</span>
   </div>
 
@@ -390,6 +391,9 @@
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" id="wishCancel">Отмена</button>
           <button type="submit" class="btn">Сохранить</button>
+        </div>
+        <div id="wishDeleteSection" style="display:none;margin-top:16px;padding-top:16px;border-top:2px solid #000;">
+          <button type="button" class="btn" id="wishDeleteBtn" style="width:100%;background:#FF0000;color:#fff;">🗑 Удалить желание</button>
         </div>
       </form>
     </div>
@@ -642,11 +646,11 @@
         tg.expand();
         // Не включаем предупреждение сразу - будем включать только при наличии несохраненных данных
         updateClosingConfirmation();
-        document.body.style.background = tg.themeParams?.bg_color || 'var(--bg-primary)';
-        if (tg.themeParams?.text_color) document.body.style.color = tg.themeParams.text_color;
-        if (tg.themeParams?.secondary_bg_color) document.documentElement.style.setProperty('--bg-secondary', tg.themeParams.secondary_bg_color);
-        document.body.classList.toggle('light', tg.colorScheme === 'light');
-        tg.setHeaderColor(tg.themeParams?.bg_color || '#1a1a2e');
+        // Neobrutalist design — не используем Telegram тему, фиксируем собственные цвета
+        document.body.style.background = '#F0F0F0';
+        document.body.style.color = '#000000';
+        try { tg.setHeaderColor('#000000'); } catch (_) {}
+        try { tg.setBackgroundColor('#F0F0F0'); } catch (_) {}
       }
     } catch (_) {}
 
@@ -1181,7 +1185,7 @@
       currentView = view;
       selectedWlId = wlId;
       document.querySelectorAll('.tab-item').forEach((t) => t.classList.remove('active'));
-      const tabMap = { main: 'tabHome', manageWishlists: 'tabWishlists', manageCategories: 'tabTags', manageWishes: 'tabWishes', createWishlist: 'tabWishlists', wishlist: 'tabWishlists' };
+      const tabMap = { main: 'tabHome', manageWishlists: 'tabWishlists', manageCategories: 'tabTags', manageWishes: 'tabWishes', createWishlist: 'tabWishlists', wishlist: 'tabWishlists', editWishlist: 'tabWishlists' };
       const tabId = tabMap[view];
       if (tabId) document.getElementById(tabId)?.classList.add('active');
       const actionBtns = document.getElementById('actionButtons');
@@ -1241,16 +1245,6 @@
                 ${ev.text}
               </div>
             `).join('')}
-        </div>
-        <div style="margin-top:8px;display:flex;flex-direction:column;gap:10px;">
-          <button class="btn" style="width:100%;" onclick="window.__nav&&window.__nav('manageWishlists')">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
-            Вишлисты
-          </button>
-          <button class="btn btn-secondary" style="width:100%;" onclick="window.__nav&&window.__nav('manageWishes')">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
-            Все желания
-          </button>
         </div>
       `;
 
@@ -1519,6 +1513,10 @@
         renderCreateWishlist();
         return;
       }
+      if (currentView === 'editWishlist' && selectedWlId) {
+        renderEditWishlist(selectedWlId);
+        return;
+      }
       renderMain();
     }
 
@@ -1572,6 +1570,115 @@
       });
     }
 
+    function renderEditWishlist(wlId) {
+      const wl = wishlists.find((x) => x.id === wlId);
+      if (!wl) { navigateTo('manageWishlists'); return; }
+      const content = document.getElementById('content');
+      const isCollab = wl.privacy === 'shared' && canEditWishlist(wl) && !isOwner(wl);
+      content.innerHTML = `
+        <div class="page-header">
+          <button class="page-back-btn" id="editWlBackBtn">← Назад</button>
+          <span class="page-header-title">Редактировать</span>
+        </div>
+        <div class="form-group">
+          <label>Название <span class="required">*</span></label>
+          <input type="text" id="ewlName" value="${escapeHtml(wl.name)}" placeholder="Название вишлиста">
+        </div>
+        <div class="form-group">
+          <label>Приватность</label>
+          <select id="ewlPrivacy">
+            <option value="private" ${wl.privacy === 'private' ? 'selected' : ''}>Приватный</option>
+            <option value="public" ${wl.privacy === 'public' ? 'selected' : ''}>Публичный</option>
+            <option value="shared" ${wl.privacy === 'shared' ? 'selected' : ''}>Совместный</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Обложка</label>
+          <div class="img-upload wl-add-img" id="ewlImgUpload" style="min-height:90px;">
+            <input type="file" id="ewlImage" accept="image/*">
+            <span id="ewlImgText" style="font-size:0.85rem;font-weight:700;text-transform:uppercase;">📷 Изменить обложку</span>
+            <img id="ewlImgPreview" class="img-preview" style="display:${wl.image ? 'block' : 'none'};max-height:120px;" src="${wl.image || ''}" alt="">
+          </div>
+        </div>
+        <div id="ewlExtras"></div>
+        <div class="form-actions-split">
+          <button type="button" class="btn btn-outline" id="ewlCancel" style="flex:0.35;">Отмена</button>
+          <button type="button" class="btn btn-secondary" id="ewlSave" style="flex:0.65;">Сохранить</button>
+        </div>
+        ${isOwner(wl) ? `
+        <div style="margin-top:24px;padding-top:16px;border-top:2px solid #000;">
+          <button type="button" class="btn" id="ewlDelete" style="width:100%;background:#FF0000;color:#fff;">🗑 Удалить вишлист</button>
+        </div>` : ''}
+        ${isCollab ? `
+        <div style="margin-top:16px;">
+          <button type="button" class="btn btn-outline" id="ewlLeave" style="width:100%;">Покинуть вишлист</button>
+        </div>` : ''}
+      `;
+
+      let pendingImg = null;
+      document.getElementById('ewlBackBtn').addEventListener('click', () => navigateTo('manageWishlists'));
+      document.getElementById('ewlCancel').addEventListener('click', () => navigateTo('manageWishlists'));
+      document.getElementById('ewlImgUpload').addEventListener('click', () => document.getElementById('ewlImage').click());
+      document.getElementById('ewlImage').addEventListener('change', (e) => {
+        const f = e.target.files?.[0];
+        if (f) fileToBase64(f).then((b) => resizeImageBase64(b, 400).then((b2) => {
+          pendingImg = b2;
+          document.getElementById('ewlImgPreview').src = b2;
+          document.getElementById('ewlImgPreview').style.display = 'block';
+          document.getElementById('ewlImgText').textContent = '✓ Обложка выбрана';
+        }));
+      });
+      document.getElementById('ewlSave').addEventListener('click', async () => {
+        const name = document.getElementById('ewlName').value.trim();
+        if (!name) return;
+        wl.name = name;
+        wl.privacy = document.getElementById('ewlPrivacy').value;
+        if (pendingImg) wl.image = pendingImg;
+        wl.updatedAt = Date.now();
+        await saveWishlists();
+        tg?.HapticFeedback?.notificationOccurred?.('success');
+        navigateTo('manageWishlists');
+      });
+      if (isOwner(wl)) {
+        document.getElementById('ewlDelete')?.addEventListener('click', async () => {
+          if (!confirm(`Удалить вишлист «${wl.name}»?`)) return;
+          await removeWlInManage(wlId);
+        });
+      }
+      if (isCollab) {
+        document.getElementById('ewlLeave')?.addEventListener('click', async () => {
+          await leaveWishlist(wlId);
+        });
+      }
+      // Extras: collaborators panel for shared wishlists
+      if (wl.privacy === 'shared' && isOwner(wl)) {
+        const extras = document.getElementById('ewlExtras');
+        const coAuths = (wl.coAuthorIds || []).filter((id) => id !== (wl.ownerId || wl.owner_id));
+        if (coAuths.length > 0 && useSupabase && sb) {
+          Promise.all(coAuths.map(async (uid) => {
+            const { data } = await sb.from('users').select('first_name, username').eq('id', uid).single();
+            return { uid, name: data ? (data.username ? '@' + data.username : data.first_name || uid) : uid };
+          })).then((members) => {
+            extras.innerHTML = `
+              <div class="form-group" style="margin-top:8px;">
+                <label>Удалить соавтора</label>
+                <select id="ewlRemoveCollab" style="width:100%;padding:10px 12px;border:2px solid #000;box-shadow:2px 2px 0 0 #000;border-radius:6px;font-family:inherit;font-weight:600;outline:none;">
+                  <option value="">— Выберите —</option>
+                  ${members.map((m) => `<option value="${escapeHtml(m.uid)}">${escapeHtml(m.name)}</option>`).join('')}
+                </select>
+                <button type="button" class="btn btn-outline" id="ewlRemoveCollabBtn" style="margin-top:8px;width:100%;">Удалить соавтора</button>
+              </div>`;
+            document.getElementById('ewlRemoveCollabBtn').addEventListener('click', async () => {
+              const uid = document.getElementById('ewlRemoveCollab').value;
+              if (!uid) return;
+              await removeCollaborator(wlId, uid);
+              renderEditWishlist(wlId);
+            });
+          });
+        }
+      }
+    }
+
     function renderManageWishlists() {
       const content = document.getElementById('content');
       content.innerHTML = `
@@ -1593,7 +1700,7 @@
       }
       list.innerHTML = wishlists.map((wl) => {
         const prClass = wl.privacy === 'private' ? 'private' : (wl.privacy === 'public' ? 'public' : 'shared');
-        const prLabel = wl.privacy === 'private' ? '🔒 Private' : (wl.privacy === 'public' ? '👁 Public' : '🤝 Shared');
+        const prLabel = wl.privacy === 'private' ? 'Приватный' : (wl.privacy === 'public' ? 'Публичный' : 'Совместный');
         const shareBtn = wl.privacy === 'public' && isOwner(wl)
           ? `<button class="btn btn-sm btn-secondary" data-wl-share="${escapeHtml(wl.id)}" style="padding:5px 10px;">Поделиться</button>`
           : '';
@@ -1602,10 +1709,11 @@
           : '';
         const isCollab = wl.privacy === 'shared' && canEditWishlist(wl) && !isOwner(wl);
         const isFollowed = !!wl.isFollowedPublic;
+        // Кнопка выхода (для соавторов и подписанных), без удаления из списка
         const removeOrLeave = (isCollab || isFollowed)
-          ? `<button class="manage-icon-btn danger wl-item-leave" data-wl-id="${escapeHtml(wl.id)}" data-followed="${isFollowed}" title="Покинуть">✕</button>`
-          : (isOwner(wl) ? `<button class="manage-icon-btn danger wl-item-remove" data-wl-id="${escapeHtml(wl.id)}" title="Удалить">✕</button>` : '');
-        const editBtn = isFollowed ? '' : `<button class="manage-icon-btn wl-item-edit" data-wl-id="${escapeHtml(wl.id)}" title="Редактировать">⚙️</button>`;
+          ? `<button class="manage-icon-btn danger wl-item-leave" data-wl-id="${escapeHtml(wl.id)}" data-followed="${isFollowed}" title="Покинуть" style="font-size:0.65rem;padding:4px;">Выйти</button>`
+          : '';
+        const editBtn = isFollowed ? '' : `<button class="manage-icon-btn wl-item-edit" data-wl-id="${escapeHtml(wl.id)}" title="Редактировать">⚙</button>`;
         const wlWishes = wishes.filter((w) => (w.wishlistIds || []).includes(wl.id));
         return `
           <div class="manage-card" data-wl-id="${escapeHtml(wl.id)}">
@@ -1633,7 +1741,7 @@
           if (!e.target.closest('.manage-card-actions, [data-wl-share], [data-wl-invite]')) navigateTo('wishlist', wlId);
         });
       });
-      list.querySelectorAll('.wl-item-edit').forEach((el) => el.addEventListener('click', (e) => { e.stopPropagation(); openWlModal(); requestAnimationFrame(() => openEditWlForm(el.dataset.wlId)); }));
+      list.querySelectorAll('.wl-item-edit').forEach((el) => el.addEventListener('click', (e) => { e.stopPropagation(); navigateTo('editWishlist', el.dataset.wlId); }));
       list.querySelectorAll('.wl-item-remove').forEach((el) => el.addEventListener('click', async (e) => { e.stopPropagation(); await removeWlInManage(el.dataset.wlId); }));
       list.querySelectorAll('.wl-item-leave').forEach((el) => el.addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -1832,8 +1940,11 @@
           <button type="button" class="btn btn-secondary" id="addCatBtn" style="padding:10px 16px;">✓</button>
         </div>
         <div id="tagCloud" class="tag-cloud"></div>
+        <div id="tagDeleteBar" style="display:none;margin-top:12px;">
+          <button type="button" class="btn" id="deleteSelectedTagsBtn" style="width:100%;background:#FF0000;color:#fff;">🗑 Удалить выбранные теги</button>
+        </div>
         <div id="trashZone" class="trash-zone" data-drop-zone>
-          <span>🗑 Перетащи сюда для удаления</span>
+          <span>🗑 Перетащи или выбери тег и нажми кнопку выше</span>
         </div>
       `;
 
@@ -1870,9 +1981,27 @@
         return `<span class="tag-chip ${isUser ? 'user-tag' : ''}" data-cat="${escapeHtml(c)}" draggable="${isUser}">${escapeHtml(c)}</span>`;
       }).join('');
 
+      const deleteBar = document.getElementById('tagDeleteBar');
+      const updateDeleteBar = () => {
+        const anySelected = cloud.querySelectorAll('.tag-chip.user-tag.selected').length > 0;
+        deleteBar.style.display = anySelected ? 'block' : 'none';
+      };
+
       cloud.querySelectorAll('.tag-chip.user-tag').forEach((chip) => {
-        chip.addEventListener('click', () => chip.classList.toggle('selected'));
+        chip.addEventListener('click', () => {
+          chip.classList.toggle('selected');
+          updateDeleteBar();
+        });
         chip.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', chip.dataset.cat); e.dataTransfer.effectAllowed = 'move'; });
+      });
+
+      document.getElementById('deleteSelectedTagsBtn').addEventListener('click', async () => {
+        const selected = [...cloud.querySelectorAll('.tag-chip.user-tag.selected')].map((el) => el.dataset.cat);
+        if (selected.length === 0) return;
+        categories = categories.filter((x) => !selected.includes(x));
+        await saveCategories();
+        tg?.HapticFeedback?.notificationOccurred?.('success');
+        renderManageCategories();
       });
 
       const trash = document.getElementById('trashZone');
@@ -1936,10 +2065,8 @@
           list.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><p>Нет желаний.</p></div>';
           return;
         }
-        list.innerHTML = items.map((w, i) => { let h = renderCard(w, { type: 'standalone' }, null); return (i % 4 === 0) ? h.replace(/class="card/, 'class="card tile-wide') : h; }).join('');
-        list.querySelectorAll('.btn-edit').forEach((b) => b.addEventListener('click', () => openWishModal(b.dataset.id)));
-        list.querySelectorAll('.btn-del').forEach((b) => b.addEventListener('click', () => deleteWish(b.dataset.id).then(() => render()).catch(() => {})));
-        list.querySelectorAll('.btn-move').forEach((b) => b.addEventListener('click', (e) => toggleMoveMenu(e, b.dataset.id)));
+        list.innerHTML = items.map((w) => renderCard(w, { type: 'standalone' }, null)).join('');
+        list.querySelectorAll('.wish-grid-card').forEach((el) => el.addEventListener('click', () => openWishModal(el.dataset.id)));
       };
 
       applySortFilter();
@@ -2004,10 +2131,8 @@
         if (!cardsEl) return;
         cardsEl.innerHTML = items.length === 0
           ? '<div class="empty-state" style="grid-column:1/-1;"><p>Нет желаний.</p></div>'
-          : items.map((w, i) => { let h = renderCard(w, sec, null); return (i % 4 === 0) ? h.replace(/class="card/, 'class="card tile-wide') : h; }).join('');
-        cardsEl.querySelectorAll('.btn-edit').forEach((b) => b.addEventListener('click', () => openWishModal(b.dataset.id)));
-        cardsEl.querySelectorAll('.btn-del').forEach((b) => b.addEventListener('click', () => deleteWish(b.dataset.id).then(() => { wl.updatedAt = Date.now(); saveWishlists(); render(); }).catch(() => {})));
-        cardsEl.querySelectorAll('.btn-move').forEach((b) => b.addEventListener('click', (e) => toggleMoveMenu(e, b.dataset.id)));
+          : items.map((w) => renderCard(w, sec, null)).join('');
+        cardsEl.querySelectorAll('.wish-grid-card').forEach((el) => el.addEventListener('click', () => openWishModal(el.dataset.id)));
       };
 
       applySortFilter();
@@ -2210,40 +2335,39 @@
       const isPublicView = !!publicViewOpts;
       const reserved = publicViewOpts?.reserved?.[w.id];
       const reservedClass = reserved ? ' card-reserved' : '';
-      const reservedBadge = reserved
-        ? `<div class="card-reserved-badge">🔖 Забронировано${reserved.userName ? ': ' + escapeHtml(reserved.userName) : ''}</div>`
-        : '';
-      const canMove = !isPublicView && wishlists.length > 0;
-      const moveBtn = canMove
-        ? `<div class="card-move-wrap">
-             <button class="btn btn-outline btn-sm wish-card-move btn-move card-move-btn" data-id="${w.id}" style="font-size:0.65rem;">↗ Перенести</button>
-           </div>`
-        : '';
       const isReservedByMe = reserved && reserved.userId === currentUserId;
-      let reserveBtn = '';
-      if (isPublicView) {
-        if (!reserved) reserveBtn = `<button class="btn btn-sm btn-reserve" data-card-id="${w.id}" style="background:#00FFFF;color:#000;">Забронировать</button>`;
-        else if (isReservedByMe) reserveBtn = `<button class="btn btn-sm btn-secondary btn-unreserve" data-card-id="${w.id}">Передумал</button>`;
+
+      // Grid-card view: square image, badges overlay, click = edit
+      if (!isPublicView) {
+        return `
+          <div class="card wish-grid-card${reservedClass}" data-id="${w.id}" style="cursor:pointer;position:relative;border-radius:10px;overflow:hidden;aspect-ratio:1;">
+            ${w.image
+              ? `<img src="${escapeHtml(w.image)}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.style.display='none'">`
+              : `<div style="width:100%;height:100%;background:#eee;display:flex;align-items:center;justify-content:center;font-size:2.8rem;">🎁</div>`}
+            ${priceStr ? `<div style="position:absolute;top:7px;right:7px;background:#FFFF00;border:1.5px solid #000;padding:2px 7px;font-size:0.68rem;font-weight:800;box-shadow:2px 2px 0 0 rgba(0,0,0,0.7);line-height:1.4;max-width:80%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(priceStr)}</div>` : ''}
+            <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.65);padding:5px 8px;">
+              <div style="color:#fff;font-size:0.68rem;font-weight:800;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;">${escapeHtml(w.name)}</div>
+            </div>
+            ${reserved ? `<div style="position:absolute;top:7px;left:7px;background:#FF00FF;border:1.5px solid #000;padding:2px 6px;font-size:0.6rem;font-weight:700;color:#fff;">🔖</div>` : ''}
+          </div>`;
       }
-      const actions = isPublicView
-        ? `<div class="card-actions">${reserveBtn}</div>`
-        : `<div class="card-actions">
-             ${moveBtn}
-             <button class="btn btn-sm wish-card-edit btn-edit" data-id="${w.id}" style="font-size:0.65rem;">✏️</button>
-             <button class="btn btn-secondary btn-sm wish-card-del btn-del" data-id="${w.id}" style="font-size:0.65rem;background:#FF0000;">🗑</button>
-           </div>`;
+
+      // Public view: with reserve/unreserve button
+      let reserveBtn = '';
+      if (!reserved) reserveBtn = `<button class="btn btn-sm btn-reserve" data-card-id="${w.id}" style="background:#00FFFF;color:#000;width:100%;">Забронировать</button>`;
+      else if (isReservedByMe) reserveBtn = `<button class="btn btn-sm btn-secondary btn-unreserve" data-card-id="${w.id}" style="width:100%;">Передумал</button>`;
+
       return `
-        <div class="card${reservedClass}" data-id="${w.id}">
-          ${w.image ? `<img class="card-img" src="${escapeHtml(w.image)}" alt="" loading="lazy" onerror="this.style.display='none'">` : '<div class="card-img" style="display:flex;align-items:center;justify-content:center;font-size:2.5rem;">🎁</div>'}
-          ${priceStr ? `<div style="position:absolute;top:8px;right:8px;background:#FFFF00;border:1.5px solid #000;padding:2px 7px;font-size:0.72rem;font-weight:700;box-shadow:2px 2px 0 0 #000;">${escapeHtml(priceStr)}</div>` : ''}
-          <div class="card-body" style="position:relative;">
-            <div class="card-title">${escapeHtml(w.name)}</div>
-            ${w.size ? `<div class="card-meta">Размер: ${escapeHtml(w.size)}</div>` : ''}
-            ${w.link ? `<a class="card-link" href="${escapeHtml(w.link)}" target="_blank" rel="noopener">${escapeHtml(w.link)}</a>` : ''}
-            ${w.comment ? `<div class="card-comment">${escapeHtml(w.comment)}</div>` : ''}
+        <div class="card${reservedClass}" data-id="${w.id}" style="position:relative;border-radius:10px;overflow:hidden;">
+          ${w.image
+            ? `<img style="width:100%;aspect-ratio:1;object-fit:cover;display:block;border-bottom:1.5px solid rgba(0,0,0,0.15);" src="${escapeHtml(w.image)}" alt="" loading="lazy" onerror="this.style.display='none'">`
+            : `<div style="width:100%;aspect-ratio:1;background:#eee;display:flex;align-items:center;justify-content:center;font-size:2.8rem;">🎁</div>`}
+          ${priceStr ? `<div style="position:absolute;top:7px;right:7px;background:#FFFF00;border:1.5px solid #000;padding:2px 7px;font-size:0.68rem;font-weight:800;box-shadow:2px 2px 0 0 rgba(0,0,0,0.7);">${escapeHtml(priceStr)}</div>` : ''}
+          <div style="position:absolute;bottom:${reserved ? '44px' : '0'};left:0;right:0;background:rgba(0,0,0,0.65);padding:5px 8px;">
+            <div style="color:#fff;font-size:0.68rem;font-weight:800;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(w.name)}</div>
           </div>
-          ${reservedBadge}
-          ${actions}
+          ${reserved ? `<div style="background:#fff;border-top:1.5px solid #000;padding:6px 8px;">${reserveBtn}</div>` : ''}
+          ${reserveBtn && !reserved ? `<div style="background:#fff;border-top:1.5px solid #000;padding:6px 8px;">${reserveBtn}</div>` : ''}
         </div>`;
     }
 
@@ -2555,6 +2679,19 @@
         if (el) { el.style.display = 'none'; el.textContent = ''; }
       });
       document.getElementById('wishModalTitle').textContent = editId ? 'Редактировать желание' : 'Добавить желание';
+      const delSection = document.getElementById('wishDeleteSection');
+      if (delSection) {
+        delSection.style.display = editId ? 'block' : 'none';
+        const delBtn = document.getElementById('wishDeleteBtn');
+        if (delBtn) {
+          delBtn.onclick = async () => {
+            if (!confirm('Удалить желание?')) return;
+            closeWishModal();
+            await deleteWish(editId);
+            render();
+          };
+        }
+      }
       
       // Отключаем предупреждение при открытии пустой формы (будет включено при вводе данных)
       updateClosingConfirmation();
@@ -3146,9 +3283,11 @@
       const player = splash.querySelector('dotlottie-player');
       if (player) {
         player.addEventListener('complete', hideSplash);
-        player.addEventListener('ready', () => setTimeout(hideSplash, 2200));
+        // fallback: hide after 2.5s if animation doesn't fire 'complete'
+        player.addEventListener('ready', () => setTimeout(hideSplash, 2500));
       }
-      setTimeout(hideSplash, 3000);
+      // absolute fallback: always hide after 3.5s
+      setTimeout(hideSplash, 3500);
     })();
 
     (async function init() {
