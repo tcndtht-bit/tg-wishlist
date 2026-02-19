@@ -3629,9 +3629,12 @@
 
     async function buildShareUrl(type, wlId, payload) {
       const base = window.location.origin + window.location.pathname;
-      // Always use direct URL so the link opens the correct (GitHub Pages) deployment.
-      // t.me/bot/app links require the Mini App URL in BotFather to be up-to-date,
-      // while the direct URL always points to the currently running version.
+      if (type === 'invite' && TELEGRAM_BOT && TELEGRAM_APP) {
+        // Invite MUST open as a proper Mini App so Telegram context is available.
+        // Uses t.me deep link — requires BotFather Mini App URL to point to GitHub Pages.
+        return 'https://t.me/' + TELEGRAM_BOT + '/' + TELEGRAM_APP + '?startapp=i_' + encodeURIComponent(wlId);
+      }
+      // Share links: direct GitHub Pages URL — readable in browser & in-app WebView.
       if (useSupabase && sb) return base + (type === 'share' ? '#w/' : '#i/') + wlId;
       await ensureLzString();
       return base + '#' + packPayload(payload);
