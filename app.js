@@ -346,6 +346,21 @@
     function cacheValid() { return _cache.ts && (Date.now() - _cache.ts < _cache.ttl); }
     function cacheTouch() { _cache.ts = Date.now(); }
     function cacheInvalidate() { _cache.ts = 0; }
+
+    // ── Analytics ─────────────────────────────────────────────
+    function trackEvent(eventName, properties) {
+      if (!useSupabase || !sb || !currentUserId) return;
+      const row = {
+        event_name: eventName,
+        user_id: currentUserId,
+        source: 'miniapp',
+        properties: properties || {},
+      };
+      // fire-and-forget, never block UI
+      sb.from('analytics_events').insert(row).then(({ error }) => {
+        if (error) console.warn('[analytics]', eventName, error.message);
+      });
+    }
     let pendingImageBase64 = null;
     let pendingWlImageBase64 = null;
     let _imageFromPhotoForSave = null;
@@ -366,7 +381,15 @@
     async function ensureUser() {
       const u = tg?.initDataUnsafe?.user;
       if (!u?.id || !useSupabase) return { error: null };
-      const { error } = await sb.from('users').upsert({ id: 'tg_' + u.id, first_name: u.first_name, username: u.username }, { onConflict: 'id' });
+      const cohortMonth = new Date().toISOString().slice(0, 7);
+      const { data: existing } = await sb.from('users').select('id').eq('id', 'tg_' + u.id).maybeSingle();
+      const isNew = !existing;
+      const { error } = await sb.from('users').upsert(
+        { id: 'tg_' + u.id, first_name: u.first_name, username: u.username, cohort_month: isNew ? cohortMonth : undefined, first_seen_at: isNew ? new Date().toISOString() : undefined },
+        { onConflict: 'id' }
+      );
+      if (isNew) trackEvent('user_registered', { cohort_month: cohortMonth });
+      else trackEvent('user_opened_miniapp', {});
       return { error };
     }
 
@@ -469,11 +492,13 @@
         const { data: wl } = await sb.from('wishlists').select('owner_id, privacy').eq('id', wlId).single();
         if (!wl || wl.privacy !== 'public' || wl.owner_id === currentUserId) return;
         await sb.from('followed_public_wishlists').upsert({ user_id: currentUserId, wishlist_id: wlId }, { onConflict: 'user_id,wishlist_id' });
+        trackEvent('wishlist_followed', { wl_id: wlId });
       } catch (_) {}
     }
 
     async function removeFollowedPublicWishlist(wlId) {
       if (!useSupabase || !sb) return;
+      trackEvent('wishlist_unfollowed', { wl_id: wlId });
       await sb.from('followed_public_wishlists').delete().eq('user_id', currentUserId).eq('wishlist_id', wlId);
       const { data: items } = await sb.from('wishlist_items').select('wish_id').eq('wishlist_id', wlId);
       const wishIds = (items || []).map((i) => i.wish_id);
@@ -1702,6 +1727,7 @@
       wishlists.push(wl);
       await saveWishlists();
       pendingWlImageBase64 = null;
+      trackEvent('wishlist_created', { privacy: wl.privacy });
       tg?.HapticFeedback?.notificationOccurred?.('success');
       navigateTo('manageWishlists');
     }
@@ -1714,14 +1740,18 @@
       }
       if (wl.coAuthorIds) wl.coAuthorIds = wl.coAuthorIds.filter((id) => id !== userId);
       await saveWishlists();
+      trackEvent('collaborator_removed', { wl_id: wlId });
       tg?.HapticFeedback?.notificationOccurred?.('success');
     }
 
     async function removeWlInManage(wlId) {
+      const wl = wishlists.find((x) => x.id === wlId);
+      const wishCount = wishes.filter((w) => (w.wishlistIds || []).includes(wlId)).length;
       wishes.forEach((w) => { const ids = Array.isArray(w.wishlistIds) ? w.wishlistIds : []; w.wishlistIds = ids.filter((id) => id !== wlId); });
       wishlists = wishlists.filter((x) => x.id !== wlId);
       await saveWishlists();
       await saveWishes();
+      trackEvent('wishlist_deleted', { privacy: wl?.privacy, wish_count: wishCount });
       refreshWlManageList();
       render();
     }
@@ -1884,6 +1914,7 @@
         if (categories.includes(v)) return;
         categories.push(v);
         await saveCategories();
+        trackEvent('label_created', { total: categories.length });
         hideNewTagForm();
         renderManageCategories();
       });
@@ -1939,6 +1970,7 @@
         }
         categories = categories.filter((x) => !selected.includes(x));
         await saveCategories();
+        trackEvent('label_deleted', { count: selected.length, remaining: categories.length });
         tg?.HapticFeedback?.notificationOccurred?.('success');
         renderManageCategories();
       });
@@ -2096,6 +2128,7 @@
       const userId = u?.id ? 'tg_' + u.id : 'anon_' + Date.now();
       const userName = u?.first_name || 'Кто-то';
       await sb.from('reservations').upsert({ wish_id: cardId, user_id: userId, user_name: userName }, { onConflict: 'wish_id' });
+      trackEvent('wish_reserved', { wish_id: cardId, wl_id: wlId });
       tg?.HapticFeedback?.notificationOccurred?.('success');
       renderWishlistDetail(wlId);
     }
@@ -2107,6 +2140,7 @@
       const { data: r } = await sb.from('reservations').select('user_id').eq('wish_id', cardId).single();
       if (!r || (userId && r.user_id !== userId)) return;
       await sb.from('reservations').delete().eq('wish_id', cardId);
+      trackEvent('wish_reservation_cancelled', { wish_id: cardId, wl_id: wlId });
       tg?.HapticFeedback?.notificationOccurred?.('success');
       renderWishlistDetail(wlId);
     }
@@ -2155,6 +2189,7 @@
         await ensureLzString();
         history.replaceState(null, '', base + '#' + packPayload(publicViewData));
       }
+      trackEvent('wish_reserved', { wish_id: cardId });
       render();
       tg?.HapticFeedback?.notificationOccurred?.('success');
     }
@@ -2177,6 +2212,7 @@
         await ensureLzString();
         history.replaceState(null, '', base + '#' + packPayload(publicViewData));
       }
+      trackEvent('wish_reservation_cancelled', { wish_id: cardId });
       render();
       tg?.HapticFeedback?.notificationOccurred?.('success');
     }
@@ -2315,6 +2351,7 @@
 
     function openWishModalFromText(extractedData) {
       window._wishFromLink = true;
+      window._wishFromText = true;
       window._wishFromImage = false;
       window._stashedImageFromPhoto = null;
       _imageFromPhotoForSave = null;
@@ -2510,6 +2547,7 @@
 
     function openWishModal(editId = null, defaultWlId = null) {
       window._wishFromLink = false;
+      window._wishFromText = false;
       window._wishFromImage = false;
       window._stashedImageFromPhoto = null;
       _imageFromPhotoForSave = null;
@@ -2771,6 +2809,10 @@
         tg?.showAlert?.(t('err_save_network'));
         return;
       }
+      if (isNew) {
+        const method = window._wishFromImage ? 'image' : (window._wishFromLink ? (window._wishFromText ? 'text' : 'link') : 'manual');
+        trackEvent('wish_created', { method, wishlist_count: wishlistIds.length, has_label: !!category });
+      }
       if (window._wishFromImage) _imageFromPhotoForSave = null;
       render();
       closeWishModal();
@@ -2780,8 +2822,10 @@
 
     async function deleteWish(id) {
       tg?.HapticFeedback?.impactOccurred?.('medium');
+      const w = wishes.find((x) => x.id === id);
       wishes = wishes.filter((x) => x.id !== id);
       await saveWishes();
+      trackEvent('wish_deleted', { had_label: !!(w?.category), had_wishlist: !!(w?.wishlistIds?.length) });
       render();
     }
 
@@ -3042,6 +3086,7 @@
     async function openShareModal(wlId) {
       const wl = wishlists.find((x) => x.id === wlId);
       if (!wl || wl.privacy !== 'public') return;
+      trackEvent('wishlist_shared', { wl_id: wlId });
       const ownerName = tg?.initDataUnsafe?.user?.username ? '@' + tg.initDataUnsafe.user.username : (tg?.initDataUnsafe?.user?.first_name || 'Пользователь');
       const url = await buildShareUrl('share', wlId, { type: 'public', wishlist: wl, wishes: wishes.filter((w) => (w.wishlistIds || []).includes(wlId)), reservedCards: {}, ownerName });
       if (tg?.openTelegramLink) {
@@ -3057,6 +3102,7 @@
     async function openInviteModal(wlId) {
       const wl = wishlists.find((x) => x.id === wlId);
       if (!wl || wl.privacy !== 'shared') return;
+      trackEvent('collaborator_invited', { wl_id: wlId });
       const invOwnerName = tg?.initDataUnsafe?.user?.username ? '@' + tg.initDataUnsafe.user.username : (tg?.initDataUnsafe?.user?.first_name || 'Пользователь');
       const url = await buildShareUrl('invite', wlId, { type: 'invite', wishlist: { ...wl, coAuthorIds: wl.coAuthorIds || [wl.ownerId] }, wishes: wishes.filter((w) => (w.wishlistIds || []).includes(wlId)), ownerName: invOwnerName });
       if (tg?.openTelegramLink) {
