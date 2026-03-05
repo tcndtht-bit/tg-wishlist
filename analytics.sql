@@ -52,11 +52,18 @@ ALTER TABLE wishes ADD COLUMN IF NOT EXISTS created_via text;     -- 'bot'|'mini
 -- Adjust to match your existing RLS policy style
 -- ================================================================
 ALTER TABLE analytics_events ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "anon insert analytics" ON analytics_events
-  FOR INSERT WITH CHECK (true);
-CREATE POLICY IF NOT EXISTS "service select analytics" ON analytics_events
-  FOR SELECT USING (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='analytics_events' AND policyname='anon insert analytics') THEN
+    CREATE POLICY "anon insert analytics" ON analytics_events FOR INSERT WITH CHECK (true);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='analytics_events' AND policyname='service select analytics') THEN
+    CREATE POLICY "service select analytics" ON analytics_events FOR SELECT USING (true);
+  END IF;
+END $$;
 
 ALTER TABLE analytics_snapshots ENABLE ROW LEVEL SECURITY;
-CREATE POLICY IF NOT EXISTS "service all snapshots" ON analytics_snapshots
-  USING (true) WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='analytics_snapshots' AND policyname='service all snapshots') THEN
+    CREATE POLICY "service all snapshots" ON analytics_snapshots USING (true) WITH CHECK (true);
+  END IF;
+END $$;
